@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+# Customer captures must never be committed. The extension does not write any
+# to disk, but anything exported by hand lands here.
+captures/

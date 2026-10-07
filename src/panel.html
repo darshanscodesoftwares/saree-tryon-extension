@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Saree Try-On Bridge</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<header>
+  <h1>Saree Try-On</h1>
+  <p class="sub" id="target">looking for a tab&hellip;</p>
+</header>
+
+<section>
+  <h2>1 &middot; The customer</h2>
+  <div class="shot">
+    <video id="video" playsinline muted autoplay></video>
+    <img id="still" alt="">
+    <p class="empty" id="camhint">Camera off</p>
+  </div>
+  <select id="camera" class="hidden"></select>
+  <div class="row">
+    <button id="start">Turn camera on</button>
+    <button id="capture" class="primary hidden">Capture</button>
+    <button id="retake" class="ghost hidden">Retake</button>
+  </div>
+</section>
+
+<section>
+  <h2>2 &middot; The saree</h2>
+  <div id="sarees" class="grid"></div>
+  <div class="row">
+    <label class="file">Add saree<input type="file" id="addsaree" accept="image/*" hidden></label>
+    <button id="removesaree" class="ghost hidden">Remove</button>
+  </div>
+</section>
+
+<section>
+  <h2>3 &middot; The prompt</h2>
+  <textarea id="prompt" rows="12" spellcheck="false"></textarea>
+  <div class="row">
+    <button id="resetprompt" class="ghost">Reset to default</button>
+  </div>
+</section>
+
+<section>
+  <h2>4 &middot; Send</h2>
+  <label class="check"><input type="checkbox" id="autosend"> Press send for me</label>
+  <button id="send" class="primary wide" disabled>Send to the page</button>
+  <pre id="status"></pre>
+</section>
+
+<footer>
+  <p>The capture and the saree are handed to whatever site is in the active tab.
+     That site is a third party: the customer's photograph leaves this machine.</p>
+</footer>
+
+<script type="module" src="panel.js"></script>
+</body>
+</html>

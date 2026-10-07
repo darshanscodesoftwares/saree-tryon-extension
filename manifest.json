@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Saree Try-On Bridge",
+  "version": "0.1.0",
+  "description": "Capture a customer, pick a saree, and hand both to a web AI image generator with the prompt already written.",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "host_permissions": [
+    "*://gemini.google.com/*",
+    "*://chatgpt.com/*",
+    "*://chat.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/panel.html"
+  },
+  "action": {
+    "default_title": "Saree Try-On Bridge"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

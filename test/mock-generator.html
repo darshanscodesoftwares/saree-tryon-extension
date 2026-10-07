@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mock-start</title>
+<!--
+  A stand-in for a generator's page, so src/inject.js can be tested without
+  opening anybody's real site. It has the three things an adapter hunts for -
+  somewhere to type, somewhere to put files, a button to press - in the two
+  shapes they usually come in, and it reports what actually arrived rather
+  than what inject.js claims.
+
+  Serve this folder over http and open test/mock-generator.html. ?shape=textarea
+  swaps the contenteditable composer for a plain textarea.
+-->
+<style>
+  body { font: 13px/1.6 ui-monospace, Menlo, monospace; background: #14181a; color: #e8edef; padding: 20px; }
+  #composer { min-height: 70px; width: 600px; border: 1px solid #333; padding: 10px; background: #111; }
+  textarea#composer { font: inherit; color: inherit; }
+  #out { white-space: pre-wrap; margin-top: 16px; }
+  .pass { color: #7fb98a; } .fail { color: #c4564a; }
+</style>
+</head>
+<body>
+<h3>mock generator</h3>
+<div id="host"></div>
+<!-- ?nofile=1 removes this, to exercise the paste fallback that any site
+     without a reachable file input will take. -->
+<input type="file" id="files" accept="image/*" multiple hidden>
+<button aria-label="Send message" id="send">Send</button>
+<pre id="log"></pre>
+
+<script>
+// Build the composer in whichever shape is being tested.
+const params = new URLSearchParams(location.search);
+const shape = params.get("shape") || "contenteditable";
+if (params.get("nofile")) document.getElementById("files").remove();
+const host = document.getElementById("host");
+host.innerHTML = shape === "textarea"
+  ? '<textarea id="composer" rows="4"></textarea>'
+  : '<div id="composer" contenteditable="true"></div>';
+
+// Record what the page actually receives, the way a real one would.
+const got = { files: [], text: "", clicked: false };
+document.getElementById("files")?.addEventListener("change", (e) => {
+  got.files = [...e.target.files].map((f) => `${f.name} ${f.type} ${f.size}B`);
+});
+document.getElementById("composer").addEventListener("paste", (e) => {
+  got.files = [...(e.clipboardData?.files ?? [])].map((f) => `${f.name} ${f.type} ${f.size}B`);
+});
+document.getElementById("send").addEventListener("click", () => (got.clicked = true));
+</script>
+<script src="../src/inject.js"></script>
+<script>
+(async () => {
+  const out = document.getElementById("log");
+  const png = (c) => {
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 8;
+    const x = cv.getContext("2d"); x.fillStyle = c; x.fillRect(0, 0, 8, 8);
+    return cv.toDataURL("image/jpeg", 0.9);
+  };
+  const res = await window.__sareeBridge.run({
+    images: [{ name: "person.jpg", dataUrl: png("#c79a7a") }, { name: "saree.jpg", dataUrl: png("#d08a35") }],
+    prompt: "TEST PROMPT line one\nline two",
+    autoSend: true,
+  });
+  const el = document.getElementById("composer");
+  got.text = el.value !== undefined ? el.value : el.textContent;
+
+  const checks = [
+    ["two images reached the page", got.files.length === 2],
+    ["they are the right two",      got.files.join().includes("person.jpg") && got.files.join().includes("saree.jpg")],
+    ["the prompt was typed",        got.text.includes("TEST PROMPT line one")],
+    ["its second line survived",    got.text.includes("line two")],
+    ["send was pressed",            got.clicked === true],
+    ["inject.js agreed it worked",  res.ok === true],
+  ];
+  const bad = checks.filter(([, ok]) => !ok).length;
+  out.innerHTML = `shape: ${shape}\nadapter: ${res.adapter}\n\n`
+    + checks.map(([n, ok]) => `<span class="${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}  ${n}</span>`).join("\n")
+    + `\n\nwhat it reported:\n` + res.notes.map((n) => "  " + n).join("\n")
+    + `\n\nfiles seen: ${got.files.join("  |  ") || "(none)"}`;
+  document.title = bad ? `mock-FAIL-${bad}` : "mock-PASS";
+})();
+</script>
+</body>
+</html>
