@@ -35,6 +35,9 @@ button.ghost { background: transparent; }
 button.wide { width: 100%; margin-top: 8px; }
 button:disabled { opacity: .45; cursor: default; }
 .file { display: inline-block; }
+/* An upload is an alternative to the camera, not a louder thing than it, so
+   this one drops back to the plain button look its neighbours wear. */
+.file.plain { border-color: var(--line); background: #1b2023; color: var(--text); font-weight: 400; }
 
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .grid figure { margin: 0; cursor: pointer; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: #000; }
@@ -46,6 +49,15 @@ textarea {
   width: 100%; padding: 9px; border-radius: 6px; border: 1px solid var(--line);
   background: #111416; color: var(--text); font: 12px/1.5 ui-monospace, Menlo, monospace; resize: vertical;
 }
+select {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line);
+  background: #1b2023; color: var(--text); font: inherit;
+}
+/* Which instruction the chosen garment will be sent with - worth being able to
+   see without opening the prompt box. */
+.tag { color: var(--accent); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.grid figcaption .kind { display: block; color: var(--accent); }
+
 .check { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .check input { margin: 0; }
 

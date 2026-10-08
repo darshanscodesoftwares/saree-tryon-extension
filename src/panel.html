@@ -17,27 +17,32 @@
   <div class="shot">
     <video id="video" playsinline muted autoplay></video>
     <img id="still" alt="">
-    <p class="empty" id="camhint">Camera off</p>
+    <p class="empty" id="camhint">No photograph yet</p>
   </div>
   <select id="camera" class="hidden"></select>
   <div class="row">
     <button id="start">Turn camera on</button>
     <button id="capture" class="primary hidden">Capture</button>
+    <label class="file plain" id="uploadlabel">Upload a photo<input type="file" id="upload" accept="image/*" hidden></label>
     <button id="retake" class="ghost hidden">Retake</button>
   </div>
 </section>
 
 <section>
-  <h2>2 &middot; The saree</h2>
-  <div id="sarees" class="grid"></div>
+  <h2>2 &middot; The garment</h2>
+  <div id="garments" class="grid"></div>
   <div class="row">
-    <label class="file">Add saree<input type="file" id="addsaree" accept="image/*" hidden></label>
-    <button id="removesaree" class="ghost hidden">Remove</button>
+    <select id="addkind" title="Which instruction to send with a new garment"></select>
+    <label class="file">Add garment<input type="file" id="addgarment" accept="image/*" hidden></label>
+  </div>
+  <div class="row hidden" id="selectedrow">
+    <select id="garmentkind" title="What this garment is"></select>
+    <button id="removegarment" class="ghost">Remove</button>
   </div>
 </section>
 
 <section>
-  <h2>3 &middot; The prompt</h2>
+  <h2>3 &middot; The prompt <span id="promptkind" class="tag"></span></h2>
   <textarea id="prompt" rows="12" spellcheck="false"></textarea>
   <div class="row">
     <button id="resetprompt" class="ghost">Reset to default</button>
@@ -52,7 +57,7 @@
 </section>
 
 <footer>
-  <p>The capture and the saree are handed to whatever site is in the active tab.
+  <p>The photograph and the saree are handed to whatever site is in the active tab.
      That site is a third party: the customer's photograph leaves this machine.</p>
 </footer>
 
