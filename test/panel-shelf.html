@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>panel-start</title>
+<!--
+  Drives the real src/panel.js in an ordinary page, with chrome.* stubbed, to
+  check the two things the side panel is now for: the shelf, and the wording
+  each kind of garment is sent with.
+
+  It replaces panel-photo.html, which tested a photograph step the panel no
+  longer has - customers are photographed at the kiosk and the worker does the
+  sending, so both moved out of here.
+
+  Serve the folder over http and open test/panel-shelf.html.
+-->
+</head>
+<body>
+
+<script>
+// ---- the extension's surroundings, faked -------------------------------
+const STORE = {};
+const SENT = [];
+window.chrome = {
+  runtime: {
+    getURL: (p) => "../" + p,
+    sendMessage: async (m) => { SENT.push(m); return {}; },
+  },
+  storage: { local: {
+    get: async (keys) => {
+      const want = Array.isArray(keys) ? keys : [keys];
+      return Object.fromEntries(Object.entries(STORE).filter(([k]) => want.includes(k)));
+    },
+    set: async (o) => Object.assign(STORE, o),
+    remove: async (k) => { delete STORE[k]; },
+  } },
+};
+
+const fatal = (e) => {
+  document.getElementById("log").textContent = "FATAL  " + (e?.stack || e?.message || e);
+  document.title = "panel-FATAL";
+  try { history.replaceState(null, "", "?fatal=" + encodeURIComponent(String(e?.message || e).slice(0, 600))); } catch {}
+};
+addEventListener("error", (e) => fatal(e.error || e.message));
+addEventListener("unhandledrejection", (e) => fatal(e.reason));
+</script>
+
+<div id="markup"></div>
+<pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+
+<script type="module">
+try {
+// A shelf left over from a previous run would make every count below a lie.
+await new Promise((done) => {
+  const r = indexedDB.deleteDatabase("saree-bridge");
+  r.onsuccess = r.onerror = r.onblocked = () => done();
+});
+
+const panelHtml = await (await fetch("../src/panel.html")).text();
+const doc = new DOMParser().parseFromString(panelHtml, "text/html");
+document.getElementById("markup").append(...doc.body.children);
+document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="../src/panel.css">');
+
+const { GARMENT_KINDS } = await import("../src/prompt.js");
+await import("../src/panel.js");
+
+const $ = (id) => document.getElementById(id);
+const tiles = () => [...document.querySelectorAll("#garments figure")];
+// The caption holds the name AND a nested kind label, so read only the name's
+// own text node - textContent would return "maroon shirtFormals, men's".
+const names = () => tiles().map((f) => f.querySelector("figcaption").firstChild.textContent.trim());
+const until = async (fn, ms = 4000) => {
+  const stop = Date.now() + ms;
+  while (Date.now() < stop) { if (fn()) return true; await new Promise((r) => setTimeout(r, 25)); }
+  return false;
+};
+const fileOf = async (colour, name) => {
+  const c = document.createElement("canvas");
+  c.width = 800; c.height = 1200;
+  const x = c.getContext("2d"); x.fillStyle = colour; x.fillRect(0, 0, 800, 1200);
+  const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.9));
+  return new File([blob], name, { type: "image/jpeg" });
+};
+async function add(file) {
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  $("addgarment").files = dt.files;
+  $("addgarment").dispatchEvent(new Event("change", { bubbles: true }));
+}
+const shown = (id) => !$(id).classList.contains("hidden");
+
+const checks = [];
+const ok = (n, p) => checks.push([n, p]);
+
+await until(() => tiles().length > 0 && $("prompt").value.length > 0);
+
+// ---- 1. what the panel is, and is not ----------------------------------
+ok("the shelf renders what ships", tiles().length === 3);
+ok("both kind menus are filled",
+   $("addkind").options.length === GARMENT_KINDS.length &&
+   $("garmentkind").options.length === GARMENT_KINDS.length);
+ok("there is no photograph step left",
+   !document.getElementById("upload") && !document.querySelector("video"));
+ok("and no send button",
+   !document.getElementById("send") && !document.getElementById("autosend"));
+ok("a prompt is showing", $("prompt").value.includes("IMAGE 1"));
+
+// ---- 2. a bundled garment cannot be edited -----------------------------
+tiles()[0].click();
+await until(() => tiles()[0].classList.contains("on"));
+ok("choosing a bundled one marks it", tiles()[0].classList.contains("on"));
+ok("but offers no kind or remove",    !shown("selectedrow"));
+
+// ---- 3. adding one, with the kind chosen beside it ---------------------
+$("addkind").value = "formals-men";
+await add(await fileOf("#6b2737", "maroon shirt.jpg"));
+ok("it joins the shelf",        await until(() => tiles().length === 4));
+ok("named from the file",       names().includes("maroon shirt"));
+ok("with the kind chosen",      tiles()[3].textContent.includes("Formals, men's"));
+ok("and it becomes selected",   shown("selectedrow"));
+ok("the wording follows it",    $("prompt").value.includes("men's formal"));
+ok("the worker was told",       SENT.some((m) => m.type === "garments:changed"));
+
+// ---- 4. changing what it is, after the fact ----------------------------
+$("garmentkind").value = "formals-women";
+$("garmentkind").dispatchEvent(new Event("change", { bubbles: true }));
+ok("the tile says so now",   await until(() => tiles()[3].textContent.includes("Formals, women's")));
+ok("and the wording changed", $("prompt").value.includes("women's formal"));
+
+// ---- 5. each kind keeps its own wording --------------------------------
+$("prompt").value = "EDITED FOR WOMEN ONLY";
+$("prompt").dispatchEvent(new Event("input", { bubbles: true }));
+await until(() => STORE.prompts && STORE.prompts["formals-women"]);
+tiles()[0].click();                                  // back to a saree
+await until(() => $("prompt").value.includes("saree"));
+ok("the saree wording is untouched", !$("prompt").value.includes("EDITED FOR WOMEN"));
+tiles()[3].click();
+await until(() => $("prompt").value.includes("EDITED"));
+ok("the edit is remembered per kind", $("prompt").value === "EDITED FOR WOMEN ONLY");
+
+// ---- 6. Reset forgets the override rather than storing a copy ----------
+$("resetprompt").click();
+await until(() => !$("prompt").value.includes("EDITED"));
+ok("Reset restores the shipped wording", $("prompt").value.includes("women's formal"));
+ok("and forgets the override entirely",  !("formals-women" in (STORE.prompts ?? {})));
+
+// ---- 7. removing ------------------------------------------------------
+$("removegarment").click();
+ok("it leaves the shelf",      await until(() => tiles().length === 3));
+ok("and the controls go away", !shown("selectedrow"));
+
+// ---- 8. a file that is not a picture ----------------------------------
+await add(new File(["not a picture"], "notes.txt", { type: "text/plain" }));
+ok("a non-image is refused",
+   await until(() => $("status").textContent.includes("could not be read")));
+ok("and nothing joins the shelf", tiles().length === 3);
+
+const bad = checks.filter(([, p]) => !p);
+document.getElementById("log").innerHTML = checks
+  .map(([n, p]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n");
+document.title = bad.length ? `panel-FAIL-${bad.length}` : "panel-PASS";
+history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")));
+} catch (e) { fatal(e); }
+</script>
+</body>
+</html>

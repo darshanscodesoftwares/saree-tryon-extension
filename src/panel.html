@@ -5,31 +5,23 @@
 <title>Saree Try-On Bridge</title>
 <link rel="stylesheet" href="panel.css">
 </head>
+<!--
+  The shopkeeper's side of it, and only that: what is on the shelf, and the
+  wording each kind of garment is sent with.
+  There is no photograph here and no send button. Customers are photographed at
+  the kiosk and the extension's own worker does the sending, so a second way to
+  do both sat here unused, taking the top of the panel and leaving the shelf -
+  which is the whole job - below the fold.
+-->
 <body>
 
 <header>
   <h1>Saree Try-On</h1>
-  <p class="sub" id="target">looking for a tab&hellip;</p>
+  <p class="sub" id="status">Anything added here appears on every screen.</p>
 </header>
 
 <section>
-  <h2>1 &middot; The customer</h2>
-  <div class="shot">
-    <video id="video" playsinline muted autoplay></video>
-    <img id="still" alt="">
-    <p class="empty" id="camhint">No photograph yet</p>
-  </div>
-  <select id="camera" class="hidden"></select>
-  <div class="row">
-    <button id="start">Turn camera on</button>
-    <button id="capture" class="primary hidden">Capture</button>
-    <label class="file plain" id="uploadlabel">Upload a photo<input type="file" id="upload" accept="image/*" hidden></label>
-    <button id="retake" class="ghost hidden">Retake</button>
-  </div>
-</section>
-
-<section>
-  <h2>2 &middot; The garment</h2>
+  <h2>1 &middot; The shelf</h2>
   <div id="garments" class="grid"></div>
   <div class="row">
     <select id="addkind" title="Which instruction to send with a new garment"></select>
@@ -42,23 +34,16 @@
 </section>
 
 <section>
-  <h2>3 &middot; The prompt <span id="promptkind" class="tag"></span></h2>
-  <textarea id="prompt" rows="12" spellcheck="false"></textarea>
+  <h2>2 &middot; What it is sent with <span id="promptkind" class="tag"></span></h2>
+  <textarea id="prompt" rows="14" spellcheck="false"></textarea>
   <div class="row">
     <button id="resetprompt" class="ghost">Reset to default</button>
   </div>
 </section>
 
-<section>
-  <h2>4 &middot; Send</h2>
-  <label class="check"><input type="checkbox" id="autosend"> Press send for me</label>
-  <button id="send" class="primary wide" disabled>Send to the page</button>
-  <pre id="status"></pre>
-</section>
-
 <footer>
-  <p>The photograph and the saree are handed to whatever site is in the active tab.
-     That site is a third party: the customer's photograph leaves this machine.</p>
+  <p>Each kind of garment keeps its own wording. Changes are saved as you type
+     and are used by every screen on the next try-on.</p>
 </footer>
 
 <script type="module" src="panel.js"></script>

@@ -31,19 +31,25 @@ chrome://extensions  ->  Developer mode  ->  Load unpacked  ->  pick this folder
 Chrome, Edge or Brave. Firefox has no `sidePanel` API, so it would need a
 different shell.
 
-## Use
+## Two front ends, and what each is for
 
-1. Open the generator you want in a tab - Gemini, ChatGPT, or anything else.
-2. Click the extension's toolbar button. The panel opens beside it.
-3. Get a photograph of the customer, either way round:
-   - **Turn camera on**, stand them in frame, **Capture**; or
-   - **Upload a photo** - the one that arrived by message, or was taken
-     before the panel was open.
-4. Pick a saree.
-5. **Send to the page.**
+**The kiosk** (`webapp/`) is the customer-facing one: she takes her photograph,
+picks a garment and sees herself wearing it. That is the product, and most of
+this README is about it.
 
-The first send to a new site asks for permission for that site. Nothing is
-granted up front beyond Gemini and ChatGPT.
+**The side panel** is the shopkeeper's, and it does two things: the shelf, and
+the wording. Add a garment, say what kind it is, and edit the instruction that
+kind is sent with. Click the extension's toolbar button to open it.
+
+It has no photograph step and no send button. Customers are photographed at
+the kiosk and the worker does the sending, so a second way to do either sat at
+the top of the panel unused - pushing the shelf, which only the panel can
+edit, below the fold. Removing both took it from 385 lines to 240, and
+`optional_host_permissions` with them: nothing asks for an arbitrary origin any
+more, which is worth having in a thing that handles photographs of customers.
+
+The cost is that a prompt can no longer be tried from here. Edit it in the
+panel, then look at the kiosk - both are on the same machine.
 
 ## Two things to know before you use it on a customer
 

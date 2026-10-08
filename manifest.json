@@ -10,9 +10,6 @@
     "tabs",
     "alarms"
   ],
-  "optional_host_permissions": [
-    "*://*/*"
-  ],
   "host_permissions": [
     "*://gemini.google.com/*",
     "*://chatgpt.com/*",

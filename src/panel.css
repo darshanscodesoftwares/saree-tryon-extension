@@ -9,30 +9,19 @@ body {
 }
 h1 { margin: 0; font-size: 15px; }
 h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.sub { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
-.sub.ready { color: #7fb98a; }
-.sub.warn { color: var(--accent); }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.sub.bad { color: var(--bad); }
 section { padding: 14px 0; border-bottom: 1px solid var(--line); }
 section:last-of-type { border-bottom: 0; }
 .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .hidden { display: none !important; }
 
-.shot { position: relative; width: 100%; aspect-ratio: 3/4; background: #000; border-radius: 8px; overflow: hidden; }
-.shot video, .shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.shot video { transform: scaleX(-1); }
-.shot img { display: none; }
-.shot.has-still img { display: block; }
-.shot.has-still video { display: none; }
-.shot .empty { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); font-size: 12px; }
-.shot.live .empty, .shot.has-still .empty { display: none; }
-
 button, .file {
   padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line);
   background: #1b2023; color: var(--text); font: inherit; cursor: pointer;
 }
-button.primary, .file { border-color: var(--accent); background: var(--accent); color: #1a1206; font-weight: 600; }
+.file { border-color: var(--accent); background: var(--accent); color: #1a1206; font-weight: 600; }
 button.ghost { background: transparent; }
-button.wide { width: 100%; margin-top: 8px; }
 button:disabled { opacity: .45; cursor: default; }
 .file { display: inline-block; }
 /* An upload is an alternative to the camera, not a louder thing than it, so
@@ -58,10 +47,5 @@ select {
 .tag { color: var(--accent); text-transform: none; letter-spacing: 0; font-weight: 400; }
 .grid figcaption .kind { display: block; color: var(--accent); }
 
-.check { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.check input { margin: 0; }
-
-#status { margin: 10px 0 0; padding: 0; font: 11px/1.6 ui-monospace, Menlo, monospace; color: var(--muted); white-space: pre-wrap; }
-#status.bad { color: var(--bad); }
 footer { padding-top: 12px; }
 footer p { margin: 0; color: var(--muted); font-size: 11px; }
