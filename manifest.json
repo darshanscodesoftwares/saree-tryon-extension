@@ -7,7 +7,8 @@
     "sidePanel",
     "storage",
     "scripting",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
   "optional_host_permissions": [
     "*://*/*"
@@ -15,7 +16,10 @@
   "host_permissions": [
     "*://gemini.google.com/*",
     "*://chatgpt.com/*",
-    "*://chat.openai.com/*"
+    "*://chat.openai.com/*",
+    "https://*.oaiusercontent.com/*",
+    "http://localhost:5200/*",
+    "http://127.0.0.1:5200/*"
   ],
   "background": {
     "service_worker": "src/background.js",

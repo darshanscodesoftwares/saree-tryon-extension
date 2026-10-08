@@ -1,0 +1,11 @@
+{
+  "name": "saree-tryon-bridge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Side panel and kiosk front end for handing a capture and a saree to a web AI generator.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test/prompts.mjs && node test/contrast.mjs"
+  }
+}

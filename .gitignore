@@ -3,3 +3,6 @@ node_modules/
 # Customer captures must never be committed. The extension does not write any
 # to disk, but anything exported by hand lands here.
 captures/
+
+# A development certificate is per-machine and is not shared.
+certs/

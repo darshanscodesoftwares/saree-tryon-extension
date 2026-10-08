@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>queue-start</title>
+<!--
+  Tests webapp/tryon-client.js - the kiosk's whole view of the back end -
+  against the REAL server, with this page standing in for the desktop worker.
+
+  That is the point of the design being a queue: the kiosk's side can be proved
+  end to end with no extension, no ChatGPT and no browser tab involved, which
+  is also why a phone can run it.
+
+  Needs `npm start`. Open test/queue-client.html from the same origin.
+-->
+</head>
+<body>
+<pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+<script type="module">
+const checks = [];
+const ok = (n, p) => checks.push([n, p]);
+const fatal = (e) => {
+  document.getElementById("log").textContent = "FATAL " + (e?.stack || e);
+  document.title = "queue-FATAL";
+  history.replaceState(null, "", "?fatal=" + encodeURIComponent(String(e?.message || e).slice(0, 400)));
+};
+addEventListener("unhandledrejection", (e) => fatal(e.reason));
+
+try {
+const { available, generate } = await import("../webapp/tryon-client.js");
+const api = (p) => new URL(p, location.href).href;
+const PX = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Stand in for the extension's service worker: take the next job and answer it
+// however the test wants. Returns what it saw, so the payload can be checked.
+async function beWorker(answer, dawdleMs = 0) {
+  for (let i = 0; i < 120; i++) {
+    const job = await (await fetch(api("../api/jobs/next"), { cache: "no-store" })).json();
+    if (job.id) {
+      if (dawdleMs) await sleep(dawdleMs);
+      await fetch(api(`../api/jobs/${job.id}/result`), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(answer),
+      });
+      return job;
+    }
+    await sleep(100);
+  }
+  return null;
+}
+
+// 1. the server is there, and knows nobody has worked the queue lately
+const cold = await available();
+ok("the queue is reachable", cold.reachable === true);
+
+// 2. the happy path: a screen asks, a worker answers, the screen gets a picture
+let seen = null;
+const stages = [];
+const [res, job] = await Promise.all([
+  generate({ person: PX, saree: PX, prompt: "TEST", onStage: (s) => stages.push(s) }),
+  beWorker({ image: PX, notes: ["took a 1024x1536 image"] }).then((j) => (seen = j)),
+]);
+ok("generate resolves with the picture", res.image === PX);
+ok("it carries the notes through",      res.notes.join().includes("1024x1536"));
+ok("the worker received both images",   seen?.person === PX && seen?.saree === PX);
+ok("and the prompt",                    seen?.prompt === "TEST");
+ok("every stage reported is a known one",
+   stages.length > 0 && stages.every((s) => ["queued", "working", "noworker"].includes(s)));
+
+// 2b. A generation slower than one poll must report progress. With a worker
+//     that answers instantly there is no "running" state to see, so the
+//     earlier version of this check passed on nothing.
+const slowStages = [];
+const [slowRes] = await Promise.all([
+  generate({ person: PX, saree: PX, prompt: "SLOW", onStage: (s) => slowStages.push(s) }),
+  beWorker({ image: PX, notes: ["slow one"] }, 2600),
+]);
+ok("a slow job reports that it is working", slowStages.includes("working"));
+ok("and still delivers the picture",        slowRes.image === PX);
+
+// 3. health now reports a worker, because one just polled
+const warm = await available();
+ok("a worker that has polled is reported", warm.worker === true);
+
+// 4. a job the worker cannot do comes back as a failure, not a hang
+let err = null;
+await Promise.all([
+  generate({ person: PX, saree: PX, prompt: "x" }).catch((e) => (err = e)),
+  beWorker({ notes: ["no generator tab is open on the desktop"] }),
+]);
+ok("a failed job rejects",   Boolean(err));
+ok("and explains why",       err?.message.includes("no generator tab"));
+
+// 5. the server refuses a job with nothing in it
+const bad = await fetch(api("../api/jobs"), {
+  method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+});
+ok("a job with no images is refused", bad.status === 400);
+
+// 6. two screens at once must not be handed each other's pictures. The worker
+//    answers each job with a picture derived from that job's own prompt, so a
+//    crossed wire shows up as the wrong image rather than passing silently.
+const imgFor = (p) => `data:image/gif;base64,${btoa(p)}`;
+async function beWorkerTwice() {
+  for (let n = 0; n < 2; ) {
+    const job = await (await fetch(api("../api/jobs/next"), { cache: "no-store" })).json();
+    if (job.id) {
+      await fetch(api(`../api/jobs/${job.id}/result`), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ image: imgFor(job.prompt), notes: [job.prompt] }),
+      });
+      n += 1;
+    } else await sleep(80);
+  }
+}
+const [ra, rb] = await Promise.all([
+  generate({ person: PX, saree: PX, prompt: "AAA" }),
+  generate({ person: PX, saree: PX, prompt: "BBB" }),
+  beWorkerTwice(),
+]);
+ok("two screens at once each get their own picture",
+   ra.image === imgFor("AAA") && rb.image === imgFor("BBB"));
+
+// 7. the catalogue: bundled garments always, panel-added ones when published.
+//    This is what lets a phone offer something the extension was told about,
+//    since a phone cannot read extension storage and has no extension at all.
+const { garments } = await import("../webapp/tryon-client.js");
+const base = await garments();
+ok("the bundled garments are always offered", base.length >= 3);
+ok("every garment has what a screen needs",
+   base.every((g) => g.id && g.kind && g.name && g.src));
+ok("the bundled ones are sarees",  base.slice(0, 3).every((g) => g.kind === "saree"));
+ok("their images are served paths", base.slice(0, 3).every((g) => g.src.startsWith("/")));
+
+await fetch(api("../api/garments"), {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    garments: [{ id: "u1", kind: "formals-men", name: "a suit", src: PX }],
+  }),
+});
+const after = await garments();
+ok("a published garment joins the list", after.length === base.length + 1);
+ok("it keeps its own kind", after.at(-1).kind === "formals-men");
+ok("it arrives as a data URL",  after.at(-1).src.startsWith("data:"));
+ok("the bundled ones are still there", after.slice(0, 3).every((g) => g.kind === "saree"));
+
+// Put it back, so a later run starts from the same place.
+await fetch(api("../api/garments"), {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ garments: [] }),
+});
+
+const nbad = checks.filter(([, p]) => !p);
+document.getElementById("log").innerHTML = checks
+  .map(([n, p]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n");
+document.title = nbad.length ? `queue-FAIL-${nbad.length}` : "queue-PASS";
+history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")));
+} catch (e) { fatal(e); }
+</script>
+</body>
+</html>
