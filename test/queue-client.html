@@ -128,6 +128,13 @@ ok("two screens at once each get their own picture",
 //    This is what lets a phone offer something the extension was told about,
 //    since a phone cannot read extension storage and has no extension at all.
 const { garments } = await import("../webapp/tryon-client.js");
+// Start from a known shelf. The server keeps the published half in memory,
+// so anything left there by an earlier run - or by someone taking
+// screenshots - would shift every count below and fail for the wrong reason.
+await fetch(api("../api/garments"), {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ garments: [] }),
+});
 const base = await garments();
 ok("the bundled garments are always offered", base.length >= 3);
 ok("every garment has what a screen needs",
