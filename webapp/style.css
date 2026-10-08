@@ -4,13 +4,14 @@
    Every pair below is checked in test/contrast.mjs rather than eyeballed -
    four pairs in the old palette failed, including every border on the page. */
 :root {
-  --bg:        #14100f;
-  --surface:   #1c1719;
-  --surface-2: #241e20;
-  --line:      #73676b;   /* clears 3:1 on the page AND on both card surfaces */
-  --hair:      #332b2d;   /* decoration only, never the edge of a control */
-  --text:      #f7f2ea;   /* warm ivory; pure white halates on a kiosk panel */
-  --muted:     #b9acaa;
+  color-scheme: light;
+  --bg:        #fbf7f1;   /* paper */
+  --surface:   #ffffff;   /* cards, tiles, the dock */
+  --surface-2: #f2ebe1;   /* inset and raised */
+  --line:      #897e74;   /* control boundaries: must clear 3:1 on paper AND white */
+  --hair:      #e3dace;   /* decoration only, never the edge of a control */
+  --text:      #1a1512;   /* warm near-black, not pure */
+  --muted:     #6a615a;
 
   /* The UI speaks in peacock, not gold. The garments own the arc from 330 to
      45 degrees - pinks, reds, zari - and a UI in those colours competes with
@@ -18,17 +19,17 @@
      selection ring scores 1.18:1 to 1.55:1: the most important state in the
      app, invisible on the thing it marks. Jade clears the page ground at
      9.96:1 instead. Gold stays, but as LIGHT - see the lamp below - never ink. */
-  --accent:    #4fd1ae;
-  --accent-ink:#06281f;
-  --primary:   #4fd1ae;
-  --gold:      #e3a44c;   /* the lamp, and category headings only */
-  --ok:        #83c491;
-  --bad:       #f0907f;
+  --accent:    #0b6b59;
+  --accent-ink:#ffffff;
+  --primary:   #0b6b59;
+  --gold:      #8a6a24;   /* the lamp, and category headings only */
+  --ok:        #0b6b59;
+  --bad:       #a8301c;
 
   --r-sm: 10px; --r: 16px; --r-lg: 22px;
   --s-1: 6px; --s-2: 10px; --s-3: 16px; --s-4: 24px; --s-5: 36px;
 
-  --tap: 48px;        /* phone floor; the kiosk raises it to ~20mm */
+  --tap: 44px;        /* phone floor; the kiosk raises it to ~20mm */
   --thumb: 158px;     /* shelf tile width, per breakpoint */
   --gutter: 16px;
   --bar-h: 56px;
@@ -69,8 +70,8 @@ h1, h2, p, figure, ol, li { margin: 0; }
 body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(130% 55% at 50% -12%, rgb(227 164 76 / .13), transparent 62%),
-    radial-gradient(90% 45% at 50% 108%, rgb(79 209 174 / .08), transparent 60%);
+    radial-gradient(130% 55% at 50% -12%, rgb(197 150 70 / .07), transparent 62%),
+    radial-gradient(90% 45% at 50% 108%, rgb(11 107 89 / .05), transparent 60%);
 }
 ol { padding: 0; list-style: none; }
 img, video { display: block; }
@@ -167,7 +168,7 @@ body[data-photo="still"] #you .step-h .num { background: var(--accent); border-c
 /* ============================================================== frame ===*/
 .frame {
   position: relative; width: 100%; aspect-ratio: 3 / 4;
-  background: #000; border-radius: var(--r); overflow: hidden;
+  background: var(--surface-2); border-radius: var(--r); overflow: hidden;
   border: 1px solid var(--line);
 }
 .frame video, .frame img {
@@ -218,12 +219,15 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
    the colour. */
 .tile {
   position: relative; display: block; width: 100%; padding: 5px;
-  background: var(--bg); color: var(--text); font: inherit; text-align: left;
+  /* White, not the beige of the page. The inset is what has to be visible
+     against a mid-grey studio backdrop, and white clears it more comfortably
+     than paper does - which is also why the shelf reads as cards on a page. */
+  background: var(--surface); color: var(--text); font: inherit; text-align: left;
   border: 0; border-radius: var(--r); cursor: pointer;
   box-shadow: 0 0 0 1px var(--hair);
   transition: transform .12s var(--ease), box-shadow .2s var(--ease);
 }
-.tile img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: #000; border-radius: 11px; }
+.tile img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: var(--surface-2); border-radius: 11px; }
 .tile .name {
   display: block; padding: var(--s-2); font-size: 13px; line-height: 1.35; color: var(--muted);
   min-height: calc(var(--tap) - 8px);
@@ -241,10 +245,12 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
   box-shadow: 0 0 0 3px var(--bg);
 }
 @container (max-width: 380px) {
-  .rack { grid-template-columns: 1fr; }
-  .tile { display: grid; grid-template-columns: 84px 1fr; align-items: center; }
+  .rack { grid-template-columns: 1fr; gap: var(--s-2); }
+  .tile { display: grid; grid-template-columns: 70px 1fr; align-items: center; }
   .tile img { aspect-ratio: 2 / 3; }
-  .tile .name { min-height: 0; }
+  /* A white card with a short name in it looks emptier than a dark one did,
+     so the row is only as tall as the thumbnail needs. */
+  .tile .name { min-height: 0; padding-block: var(--s-2); }
 }
 
 /* ============================================================ results ===*/
@@ -258,7 +264,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
   width: auto; height: auto;
   max-width: 100%; max-height: 62dvh;
   margin-inline: auto; object-fit: contain;
-  border-radius: var(--r); border: 1px solid var(--hair); background: #000;
+  border-radius: var(--r); border: 1px solid var(--hair); background: var(--surface-2);
 }
 /* The moment in a saree shop is the unrolling, so the result is not faded in -
    it is drawn down like cloth off a bolt. */
@@ -298,17 +304,18 @@ body.comparing .shot.before { display: block; }
 /* ================================================================ btn ===*/
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: var(--tap); padding: 0 var(--s-4);
-  border-radius: var(--r-sm); border: 1px solid var(--line);
-  background: var(--surface-2); color: var(--text);
-  font: inherit; font-weight: 600; cursor: pointer; text-align: center;
+  min-height: var(--tap); padding: 0 var(--s-3);
+  border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text);
+  font: inherit; font-size: 15px; font-weight: 500; line-height: 1.2;
+  cursor: pointer; text-align: center; white-space: nowrap;
   transition: transform .1s var(--ease), background .15s var(--ease);
 }
 .btn:active { transform: scale(.98); }
-.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--accent-ink); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--accent-ink); font-weight: 600; }
 .btn.ghost { background: transparent; border-color: var(--hair); font-weight: 400; color: var(--muted); }
 .btn.grow { flex: 1 1 auto; }
-.btn.xl { min-height: 64px; font-size: 19px; padding: 0 var(--s-5); }
+.btn.xl { min-height: 58px; font-size: 17px; padding: 0 var(--s-5); }
 /* Disabled is signalled by more than a dim: it keeps a readable label. */
 .btn:disabled { background: var(--surface); border-color: var(--hair); color: var(--muted); cursor: default; transform: none; }
 .btn .short { display: none; }
@@ -322,7 +329,7 @@ body.comparing .shot.before { display: block; }
   display: none;
   align-content: center; justify-items: center; gap: var(--s-3);
   padding: var(--s-5); text-align: center;
-  background: radial-gradient(120% 90% at 50% 10%, #16231f 0%, var(--bg) 62%);
+  background: radial-gradient(120% 90% at 50% 10%, #f1f6f3 0%, var(--bg) 62%);
 }
 body[data-stage="working"] #wait { display: grid; }
 .lottie { width: clamp(132px, 23vw, 220px); height: clamp(132px, 23vw, 220px); margin-bottom: calc(var(--s-3) * -1); }
@@ -346,6 +353,8 @@ body[data-stage="working"] #wait { display: grid; }
 .waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
 .waitsub { font-size: clamp(12px, 1.4vw, 15px); color: var(--muted); }
 #resultacts { display: none; flex: 1 1 auto; gap: var(--s-2); align-items: center; }
+/* Three controls in a phone dock: they fit only if none of them wraps. */
+#resultacts .btn { padding-inline: var(--s-3); font-size: 14px; }
 
 /* ======================================================= stage wiring ===*/
 body[data-stage="choose"]  #resultpane { display: none; }
@@ -369,7 +378,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
      is inside the reach band. */
   place-items: end center;
   padding: var(--s-5) var(--s-5) 22vh;
-  background: radial-gradient(120% 90% at 50% 0%, #2a1a1d 0%, var(--bg) 60%);
+  background: radial-gradient(120% 90% at 50% 0%, #f7efe6 0%, var(--bg) 60%);
 }
 #attract[hidden] { display: none; }
 .attract-in { display: grid; gap: var(--s-3); justify-items: center; max-width: 16ch; }
@@ -380,7 +389,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
 #attract .btn { margin-top: var(--s-3); animation: breathe 3.2s var(--ease) infinite; }
 @keyframes breathe { 50% { transform: scale(1.035); } }
 
-#idlewarn { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(0,0,0,.7); }
+#idlewarn { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgb(26 21 18 / .5); }
 #idlewarn[hidden] { display: none; }
 #idlewarn .sheet {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
@@ -421,7 +430,8 @@ body[data-stage="result"]  #resultacts { display: flex; }
   #work { overflow-y: auto; overscroll-behavior: contain; }
   #bar h1 { font-size: 30px; } .status { font-size: 17px; }
   .step-h { font-size: 21px; } .step-h .num { width: 34px; height: 34px; font-size: 16px; }
-  .btn { font-size: 20px; } .btn.grow { max-width: 640px; margin-inline: auto; }
+  .btn { font-size: 19px; padding: 0 var(--s-4); } .btn.grow { max-width: 640px; margin-inline: auto; }
+  #resultacts .btn { font-size: 18px; }
   .chip { width: 72px; height: 72px; }
   .tile .name { font-size: 16px; padding: var(--s-3); }
   #plinth { grid-area: plinth; }

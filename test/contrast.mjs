@@ -58,7 +58,8 @@ const checks = [
 // photograph - a 5px inset of ground colour separates them, and THAT gap is
 // what has to be visible against the picture.
 for (const [name, hex] of Object.entries(PHOTO)) {
-  checks.push([`the inset gap against ${name}`, C.bg, hex, 3]);
+  // The gap is the TILE's colour, not the page's - see .tile in style.css.
+  checks.push([`the inset gap against ${name}`, C.surface, hex, 3]);
 }
 
 const results = checks.map(([name, a, b, need]) => {

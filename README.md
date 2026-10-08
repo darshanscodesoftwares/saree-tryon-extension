@@ -165,21 +165,23 @@ which lands the primary action at about 69% of screen height.
 shelf scrolls. A touch panel has no scrollbar, no wheel and no PageDown, and a
 customer using this once has no reason to go looking.
 
-### Why the interface is not gold any more
+### Paper, white, and why the interface is not gold
 
-The garments own the colours between 330 and 45 degrees - pinks, reds, zari -
-and the UI was using them too. Measured against the three saree photographs a
-gold selection ring scores **1.18:1 to 1.55:1**: the most important state in
-the app, invisible on the very thing it marks. The primary button reached
-3.67:1, quieter than the product.
-
-So the UI speaks in peacock, and gold stays as *light* - a warm wash from above
+Beige page, white cards, deep jade. The garments own the colours between 330
+and 45 degrees - pinks, reds, zari - and the UI was using them too. Measured
+against the three saree photographs a gold selection ring scores **1.18:1 to
+1.55:1**: the most important state in the app, invisible on the very thing it
+marks. So the UI speaks in jade, and gold stays as *light* - a faint warm wash
 in `body::before` - never as ink.
 
 That alone is not enough, and the fix is a construction rather than a colour:
-**no accent meets 3:1 laid directly on a garment photograph**; jade scores 1.77
-to 2.33 on these three. Each tile keeps a 5px inset of page colour around its
-image and the ring sits outside that, on the ground, at 9.96:1.
+**no accent meets 3:1 laid directly on a garment photograph**; jade scores 1.46
+to 1.92 on these three. Each tile therefore keeps a 5px inset of WHITE around
+its image, and the ring sits outside that on the page at 6.03:1. The inset is
+what has to be visible against a mid-grey studio backdrop, and white clears it
+(4.42, 3.36, 4.12) more comfortably than the beige page does - which is also
+why the shelf reads as cards on paper rather than as a flat grid.
+
 `node test/contrast.mjs` checks all 18 pairs including the inset, and prints
 the direct-ring numbers so nobody later simplifies the gap away.
 
