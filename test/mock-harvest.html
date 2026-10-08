@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>harvest-start</title>
+<!--
+  A stand-in for a generator's page AFTER sending, so src/harvest.js can be
+  tested on the thing it actually has to do: tell a generated picture apart
+  from the two we just uploaded.
+
+  This is the half that had never been run for real, and the first time it was,
+  ChatGPT produced a picture and harvest.js reported that nothing arrived. So
+  the cases here are the ones that failed or nearly did:
+
+    ?where=assistant  the picture inside the site's own assistant marker
+    ?where=main       outside that marker, so a fallback selector must find it
+    ?where=none       no picture at all; the census must say what WAS there
+    ?echo=late        our two uploads re-rendered AFTER watching starts, which
+                      must not be mistaken for the answer
+    ?srcset=1         the page renders a small copy and names a bigger one in
+                      srcset, which is what must actually be taken
+-->
+<style>body{font:13px/1.6 ui-monospace,Menlo,monospace;background:#14181a;color:#e8edef;padding:16px}
+img{max-width:90px}.pass{color:#7fb98a}.fail{color:#c4564a}#log{white-space:pre-wrap}</style>
+</head>
+<body>
+<div id="page"></div>
+<pre id="log"></pre>
+<script>
+// A throw inside the async fixture is otherwise invisible: the title stays at
+// "start" and there is nothing to read.
+const fatal = (e) => {
+  document.getElementById("log").textContent = "FATAL  " + (e?.stack || e?.message || e);
+  document.title = "harvest-FATAL";
+  try { history.replaceState(null, "", "?fatal=" + encodeURIComponent(String(e?.message || e).slice(0, 300))); } catch {}
+};
+addEventListener("error", (e) => fatal(e.error || e.message));
+addEventListener("unhandledrejection", (e) => fatal(e.reason));
+</script>
+
+<script>
+// Pictures of a known size, so "big enough" and "which one" are decidable.
+function png(w, h, colour) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const x = c.getContext("2d");
+  x.fillStyle = colour; x.fillRect(0, 0, w, h);
+  return c.toDataURL("image/png");
+}
+const PERSON = png(1024, 1365, "#c79a7a");     // what we uploaded
+const SAREE  = png(1024, 1536, "#d08a35");     // what we uploaded
+const RESULT = png(1024, 1536, "#2d6a4f");     // what came back
+const RESULT_SMALL = png(512, 768, "#2d6a4f"); // the copy a page may render
+
+const params = new URLSearchParams(location.search);
+const where = params.get("where") ?? "assistant";
+const lateEcho = params.get("echo") === "late";
+
+const page = document.getElementById("page");
+const add = (html) => page.insertAdjacentHTML("beforeend", html);
+
+// An avatar and an icon, which must never be chosen.
+add(`<img src="${png(32, 32, "#888")}" alt="avatar"><img src="${png(24, 24, "#555")}" alt="icon">`);
+
+// The user's turn, holding our two uploads. Either already present, or
+// re-rendered shortly after watching begins - the case that matters.
+async function userTurn() {
+  const turn = document.createElement("div");
+  turn.setAttribute("data-message-author-role", "user");
+  for (const src of [PERSON, SAREE]) {
+    const img = new Image();
+    img.src = src;
+    try { await img.decode(); } catch {}
+    turn.appendChild(img);
+  }
+  page.appendChild(turn);
+}
+
+// Harness timings: seconds, not minutes.
+window.__sareeHarvestConfig = { settleFirst: 400, stableFor: 300, giveUpAfter: 6000 };
+
+// Capture what harvest.js reports instead of messaging a service worker.
+let reported = null;
+window.chrome = { runtime: { sendMessage: (m) => { reported = m; } } };
+</script>
+
+<script>
+// Awaited before harvest.js runs, so the "already on the page" snapshot really
+// does contain our two uploads in the early case.
+window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
+</script>
+
+<script src="../src/harvest.js"></script>
+
+<script>
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Decoded BEFORE it goes into the page. An <img> only counts once it has
+  // loaded, and image decoding is not a timer - so inserting markup and hoping
+  // made this test race its own fixture and fail at random.
+  async function place(container, src, srcset) {
+    const img = new Image();
+    if (srcset) img.srcset = srcset;
+    img.src = src;
+    try { await img.decode(); } catch {}
+    container.appendChild(img);
+    return img;
+  }
+  const box = (html) => {
+    const t = document.createElement("div");
+    t.innerHTML = html;
+    // Held before appending: appending MOVES it, so reading firstElementChild
+    // afterwards gives null.
+    const el = t.firstElementChild;
+    page.appendChild(el);
+    return el;
+  };
+
+  await window.__fixtureReady;
+  window.__sareeHarvest.start("test-job");
+
+  if (lateEcho) {
+    await sleep(120);
+    await userTurn();
+  }
+
+  // The answer arrives well after watching began, as a real one does.
+  await sleep(900);
+  if (params.get("srcset")) {
+    // Rendered small, with the full size named in srcset - the common case.
+    await place(box('<div data-message-author-role="assistant"></div>'),
+                RESULT_SMALL, `${RESULT_SMALL} 512w, ${RESULT} 1024w`);
+  } else if (where === "assistant") {
+    await place(box('<div data-message-author-role="assistant"></div>'), RESULT);
+  } else if (where === "main") {
+    await place(box("<main><div></div></main>").querySelector("div"), RESULT);
+  }
+
+  for (let i = 0; i < 150 && !reported; i++) await sleep(100);
+
+  const notes = (reported?.notes ?? []).join(" | ");
+  const checks = params.get("srcset")
+    ? [
+        ["it found a picture",            reported?.ok === true],
+        ["it took the WIDEST in srcset",  reported?.url === RESULT],
+        ["not the small one rendered",    reported?.url !== RESULT_SMALL],
+        ["it said it used the srcset",    (reported?.notes ?? []).join(" ").includes("srcset")],
+      ]
+    : where === "none"
+    ? [
+        ["it gave up rather than hanging",       reported?.ok === false],
+        ["it said nothing arrived",              notes.includes("nothing that looked like")],
+        ["the census counted the page's images", /\d+ images on the page/.test(notes)],
+        ["the census listed each selector",      notes.includes("new per selector")],
+      ]
+    : [
+        ["it found a picture",                   reported?.ok === true],
+        ["it took the generated one",            reported?.url === RESULT],
+        ["not the person we uploaded",           reported?.url !== PERSON],
+        ["not the saree we uploaded",            reported?.url !== SAREE],
+        ["it said where it found it",            /from the|from a/.test(notes)],
+        ["it read the bytes back",               typeof reported?.dataUrl === "string"],
+      ];
+
+  const bad = checks.filter(([, p]) => !p);
+  document.getElementById("log").innerHTML =
+    `where=${where} echo=${lateEcho ? "late" : "early"}\n\n` +
+    checks.map(([n, p]) => `<span class="${p ? "pass" : "fail"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n") +
+    `\n\nreported:\n  ` + (reported?.notes ?? ["(nothing)"]).join("\n  ");
+  document.title = bad.length ? `harvest-FAIL-${bad.length}` : "harvest-PASS";
+  history.replaceState(null, "", "?done=1&r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")));
+})();
+</script>
+</body>
+</html>
