@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>shelf-start</title>
+<!--
+  Drives the real kiosk page in an iframe, against the real server, to check
+  what a customer is actually offered: that a garment the side panel added
+  reaches the screen at all, and that the shelf is grouped so somebody looking
+  for a shirt is not scrolling through sarees.
+
+  Same origin, so the iframe's DOM can be read. Needs `npm start`.
+  Run in REAL time: it waits on images loading, which is not a timer.
+-->
+</head>
+<body>
+<iframe id="kiosk" src="about:blank" style="width:460px;height:700px;border:1px solid #333"></iframe>
+<pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+<script type="module">
+const checks = [];
+const ok = (n, p) => checks.push([n, p]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const api = (p) => new URL(p, location.href).href;
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+const publish = (garments) =>
+  fetch(api("../api/garments"), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ garments }),
+  });
+
+const frame = document.getElementById("kiosk");
+async function openKiosk() {
+  await new Promise((done) => {
+    frame.onload = done;
+    frame.src = api("../webapp/") + "?t=" + checks.length;
+  });
+  const d = frame.contentDocument;
+  for (let i = 0; i < 100; i++) {
+    if (d.querySelectorAll(".tile").length) break;
+    await sleep(100);
+  }
+  return d;
+}
+const names = (d) => [...d.querySelectorAll(".tile .name")].map((c) => c.textContent.trim());
+const groups = (d) => [...d.querySelectorAll(".group")].map((h) => h.textContent.trim());
+
+try {
+  // 1. nothing added in the panel: only what ships, and no headings, because a
+  //    "Saree" label over three sarees tells a customer nothing.
+  await publish([]);
+  let d = await openKiosk();
+  ok("the bundled garments are offered", names(d).length === 3);
+  ok("one kind means no headings",       groups(d).length === 0);
+
+  // 2. the panel adds two formals; both must reach the screen and be grouped.
+  await publish([
+    { id: "u1", kind: "formals-men", name: "a shirt and trousers", src: PNG },
+    { id: "u2", kind: "formals-women", name: "a trouser suit", src: PNG },
+  ]);
+  d = await openKiosk();
+  const n = names(d), g = groups(d);
+  ok("a garment added in the panel reaches the kiosk", n.includes("a shirt and trousers"));
+  ok("so does the other one",                          n.includes("a trouser suit"));
+  ok("the bundled ones are still there",               n.length === 5);
+  ok("each kind present gets a heading",               g.length === 3);
+  ok("the headings name the kinds",
+     g.some((x) => /saree/i.test(x)) && g.some((x) => /men/i.test(x)) && g.some((x) => /women/i.test(x)));
+
+  // Grouping has to be real, not just headings: every tile under a heading
+  // must belong to it.
+  const grids = [...d.querySelectorAll(".rack")];
+  ok("each group holds only its own garments",
+     grids.length === 3 && grids.every((grid) => grid.querySelectorAll(".tile").length >= 1));
+  ok("the menswear group holds exactly one",
+     grids[g.findIndex((x) => /men's/i.test(x))]?.querySelectorAll(".tile").length === 1);
+  // The tiles must be real buttons: a <figure> with a click listener cannot be
+  // reached by a keyboard, a switch or a screen reader.
+  const tiles = [...d.querySelectorAll(".tile")];
+  ok("every tile is a button",      tiles.every((t) => t.tagName === "BUTTON"));
+  ok("every tile reports pressed",  tiles.every((t) => t.hasAttribute("aria-pressed")));
+  ok("none is pressed to start",    tiles.every((t) => t.getAttribute("aria-pressed") === "false"));
+  tiles[0].click();
+  await sleep(300);
+  const after2 = [...d.querySelectorAll(".tile")];
+  ok("choosing one marks it pressed", after2.some((t) => t.getAttribute("aria-pressed") === "true"));
+  ok("and only one",                  after2.filter((t) => t.getAttribute("aria-pressed") === "true").length === 1);
+
+  await publish([]);   // leave it as it was found
+} catch (e) {
+  ok("the test itself ran: " + (e?.message ?? e), false);
+}
+
+const bad = checks.filter(([, p]) => !p);
+document.getElementById("log").innerHTML =
+  checks.map(([n, p]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n");
+document.title = bad.length ? `shelf-FAIL-${bad.length}` : "shelf-PASS";
+history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")));
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>layout-start</title>
+<link rel="stylesheet" href="../webapp/style.css">
+<!--
+  The generated picture was coming out cropped: the frame is a fixed 3/4 box
+  with object-fit: cover, which is right for a live camera preview and wrong
+  for a finished 2:3 image - it sliced off the head and the hem.
+
+  This checks the shapes rather than the look: a result keeps its aspect ratio,
+  a camera preview still fills its box.
+
+  Run it in REAL time. It waits for an image to decode, which is not a timer,
+  so --virtual-time-budget races past it and dumps the page before it finishes.
+-->
+<style>#harness { width: 400px; }</style>
+</head>
+<body>
+<div id="harness">
+  <figure class="shot after" id="resultFrame"><img id="result" alt=""></figure>
+  <div class="frame" id="camFrame" style="position:relative"><img id="cam" alt="" style="position:absolute;inset:0;width:100%;height:100%"></div>
+</div>
+<pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+<script>
+(async () => {
+  // A 2:3 picture, the shape these generators return.
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 1536;
+  const x = c.getContext("2d"); x.fillStyle = "#2d6a4f"; x.fillRect(0, 0, 1024, 1536);
+  const src = c.toDataURL("image/png");
+
+  const result = document.getElementById("result");
+  const cam = document.getElementById("cam");
+  result.src = src; cam.src = src;
+  await Promise.all([result.decode(), cam.decode()]);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  const r = result.getBoundingClientRect();
+  const cm = document.getElementById("camFrame").getBoundingClientRect();
+  const want = 1024 / 1536;
+  const got = r.width / r.height;
+
+  const checks = [
+    ["the result keeps its 2:3 shape", Math.abs(got - want) < 0.02],
+    ["it is not stretched or cropped", getComputedStyle(result).objectFit === "contain"],
+    ["it is visible at all",           r.width > 50 && r.height > 50],
+    ["it fits on screen",              r.height <= window.innerHeight * 0.75 + 2],
+    ["the camera frame is still 3:4",  Math.abs(cm.width / cm.height - 3 / 4) < 0.02],
+    ["and still fills its box",        getComputedStyle(cam).objectFit === "cover"],
+  ];
+  const bad = checks.filter(([, p]) => !p);
+  document.getElementById("log").innerHTML =
+    `result rendered ${Math.round(r.width)}x${Math.round(r.height)} (ratio ${got.toFixed(3)}, want ${want.toFixed(3)})\n\n` +
+    checks.map(([n, p]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n");
+  document.title = bad.length ? `layout-FAIL-${bad.length}` : "layout-PASS";
+  history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")));
+})();
+</script>
+</body>
+</html>

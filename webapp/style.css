@@ -1,0 +1,450 @@
+/* ============================================================== tokens ===
+   Dark, because the room is lit for cloth and the garments are the brightest
+   thing on screen: pinks, reds and golds. A light UI competes with them.
+   Every pair below is checked in test/contrast.mjs rather than eyeballed -
+   four pairs in the old palette failed, including every border on the page. */
+:root {
+  --bg:        #14100f;
+  --surface:   #1c1719;
+  --surface-2: #241e20;
+  --line:      #73676b;   /* clears 3:1 on the page AND on both card surfaces */
+  --hair:      #332b2d;   /* decoration only, never the edge of a control */
+  --text:      #f7f2ea;   /* warm ivory; pure white halates on a kiosk panel */
+  --muted:     #b9acaa;
+
+  /* The UI speaks in peacock, not gold. The garments own the arc from 330 to
+     45 degrees - pinks, reds, zari - and a UI in those colours competes with
+     the product and loses. Measured against the three saree backdrops, a gold
+     selection ring scores 1.18:1 to 1.55:1: the most important state in the
+     app, invisible on the thing it marks. Jade clears the page ground at
+     9.96:1 instead. Gold stays, but as LIGHT - see the lamp below - never ink. */
+  --accent:    #4fd1ae;
+  --accent-ink:#06281f;
+  --primary:   #4fd1ae;
+  --gold:      #e3a44c;   /* the lamp, and category headings only */
+  --ok:        #83c491;
+  --bad:       #f0907f;
+
+  --r-sm: 10px; --r: 16px; --r-lg: 22px;
+  --s-1: 6px; --s-2: 10px; --s-3: 16px; --s-4: 24px; --s-5: 36px;
+
+  --tap: 48px;        /* phone floor; the kiosk raises it to ~20mm */
+  --thumb: 158px;     /* shelf tile width, per breakpoint */
+  --gutter: 16px;
+  --bar-h: 56px;
+  --dock-h: 88px;
+  --floor: 0px;       /* dead space below the dock; kiosk only */
+
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* =============================================================== reset ===
+   The lockdown bits matter on a shop machine: pull-to-refresh, the
+   double-tap zoom delay and long-press selection handles all make a kiosk
+   feel loose or look broken. */
+* { box-sizing: border-box; }
+html, body { overscroll-behavior: none; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  grid-template-areas: "bar" "work" "act";
+  /* minmax(0,1fr), not the implicit `auto` column: an auto track is sized to
+     max-content, so one nowrap heading in the bar widened the entire page to
+     582px at a 390px viewport and everything scrolled sideways. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+button, label.btn, .tile, .chip { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+h1, h2, p, figure, ol, li { margin: 0; }
+
+/* The room. Warm shop light from above with a little cool bounce off the
+   floor - which is where the gold lives now that the UI has given it back to
+   the cloth. Costs nothing and stops the page reading as a flat black form. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(130% 55% at 50% -12%, rgb(227 164 76 / .13), transparent 62%),
+    radial-gradient(90% 45% at 50% 108%, rgb(79 209 174 / .08), transparent 60%);
+}
+ol { padding: 0; list-style: none; }
+img, video { display: block; }
+:where(button, [href], input, label.btn, .tile, .chip):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.step-h, .chip, .tile, .ladder, #bar { user-select: none; -webkit-user-select: none; }
+
+/* An elegant display face where one is available, without a web font: a shop
+   screen may be offline and a missing font is worse than a system one. */
+h1, h2, .kicker { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif; }
+
+/* A default scrollbar is a bright slab on a dark page, and on a touch panel
+   nobody uses it anyway - but it still has to say that there is more below. */
+#work, #shelf, #garments, #debug { scrollbar-width: thin; scrollbar-color: var(--hair) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--hair); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--line); background-clip: content-box; }
+
+/* ================================================================ bar ===*/
+#bar {
+  grid-area: bar;
+  display: flex; align-items: center; gap: var(--s-2);
+  height: var(--bar-h);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--hair);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 20;
+}
+#bar h1 {
+  font-size: 19px; font-weight: 600; letter-spacing: -.01em;
+  white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+.status {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 13px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* A dot as well as a colour: colour alone is not a status. */
+.status::before {
+  content: ""; display: inline-block; vertical-align: middle;
+  width: 8px; height: 8px; border-radius: 50%; margin-right: 7px;
+  background: var(--muted);
+}
+.status.ready { color: var(--ok); } .status.ready::before { background: var(--ok); }
+.status.warn  { color: var(--gold); } .status.warn::before { background: var(--gold); }
+.status.bad   { color: var(--bad); } .status.bad::before { background: var(--bad); }
+.staff {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--hair); background: transparent; color: var(--muted);
+  font: inherit; font-size: 14px; cursor: pointer;
+}
+
+/* =============================================================== work ===*/
+#work {
+  grid-area: work;
+  min-height: 0;
+  padding: var(--s-4) var(--gutter) 0;
+  display: flex; flex-direction: column; gap: var(--s-5);
+}
+.step-h {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-size: 15px; font-weight: 600; letter-spacing: .01em;
+  margin-bottom: var(--s-3); color: var(--text);
+}
+.step-h .num {
+  flex: none; display: grid; place-items: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--line);
+  font-size: 13px; font-family: system-ui, sans-serif; color: var(--muted);
+}
+body[data-photo="still"] #you .step-h .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* ============================================================ chooser ===
+   The empty state of step one. Short, and offering the two ways in as peers. */
+.chooser {
+  display: grid; justify-items: center; gap: var(--s-3);
+  min-height: clamp(132px, 20dvh, 300px);
+  padding: var(--s-4) var(--s-3);
+  border: 1px dashed var(--line); border-radius: var(--r);
+  background: var(--surface);
+  text-align: center;
+}
+.chooser .glyph { width: 30px; height: 54px; fill: none; stroke: var(--muted); stroke-width: 2.4; opacity: .8; }
+.chooser-copy { color: var(--muted); font-size: 14px; }
+.chooser-acts { display: flex; gap: var(--s-2); flex-wrap: wrap; justify-content: center; width: 100%; }
+/* Share the width rather than each demanding its label's full length, which
+   is what pushed them off the side of a phone. */
+.chooser-acts .btn { flex: 1 1 auto; min-width: 0; padding-inline: var(--s-3); }
+
+/* ============================================================== frame ===*/
+.frame {
+  position: relative; width: 100%; aspect-ratio: 3 / 4;
+  background: #000; border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--line);
+}
+.frame video, .frame img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.frame video { transform: scaleX(-1); }
+.frame .hint {
+  position: absolute; inset: auto 0 0; margin: 0; padding: 70px var(--s-3) var(--s-3);
+  background: linear-gradient(transparent, rgba(0,0,0,.8));
+  color: #fff; font-size: 14px; text-align: center;
+}
+.frame-acts {
+  position: absolute; inset: auto 0 0; z-index: 2;
+  display: flex; gap: var(--s-2); justify-content: center;
+  padding: var(--s-3);
+}
+body[data-photo="empty"] .frame,
+body[data-photo="empty"] #cancelcam { display: none; }
+body[data-photo="live"]  .chooser,
+body[data-photo="still"] .chooser { display: none; }
+body[data-photo="live"]  #still,
+body[data-photo="live"]  #retake { display: none; }
+body[data-photo="still"] video,
+body[data-photo="still"] .hint,
+body[data-photo="still"] #capture,
+body[data-photo="still"] #cancelcam { display: none; }
+body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, rgba(0,0,0,.75)); }
+
+/* ============================================================== shelf ===*/
+#garments { container-type: inline-size; display: flex; flex-direction: column; gap: var(--s-4); }
+.group {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--gold); font-weight: 700; font-family: system-ui, sans-serif;
+  margin-bottom: var(--s-2);
+  position: sticky; top: 0; z-index: 5;
+  background: linear-gradient(var(--bg) 70%, transparent);
+  padding: 4px 0;
+}
+/* Gap >= 24px because each tile carries a 5px inset and a 4px ring outside it. */
+.rack { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb), 1fr)); gap: var(--s-4); }
+
+/* A real button: focusable, keyboard-operable, announced as pressed. It was a
+   <figure> with a click listener, which no keyboard or screen reader could use. */
+/* The selection ring cannot sit on the photograph: measured against these
+   backdrops no accent colour reaches 3:1 on them. So the tile keeps a 5px
+   inset of GROUND colour around the image, and the ring sits outside that on
+   the ground, where it scores 9.96:1. The construction is what passes, not
+   the colour. */
+.tile {
+  position: relative; display: block; width: 100%; padding: 5px;
+  background: var(--bg); color: var(--text); font: inherit; text-align: left;
+  border: 0; border-radius: var(--r); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--hair);
+  transition: transform .12s var(--ease), box-shadow .2s var(--ease);
+}
+.tile img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: #000; border-radius: 11px; }
+.tile .name {
+  display: block; padding: var(--s-2); font-size: 13px; line-height: 1.35; color: var(--muted);
+  min-height: calc(var(--tap) - 8px);
+}
+.tile:active { transform: scale(.97); }
+/* Selection is shown three ways - border weight, a tick, and the name turning
+   solid - because colour alone is not an indicator anyone can rely on. */
+.tile[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--accent); }
+.tile[aria-pressed="true"] .name { color: var(--text); font-weight: 600; }
+.tile[aria-pressed="true"]::after {
+  content: "✓"; position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink); font-size: 18px; font-weight: 700;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+@container (max-width: 380px) {
+  .rack { grid-template-columns: 1fr; }
+  .tile { display: grid; grid-template-columns: 84px 1fr; align-items: center; }
+  .tile img { aspect-ratio: 2 / 3; }
+  .tile .name { min-height: 0; }
+}
+
+/* ============================================================ results ===*/
+.results { display: grid; gap: var(--s-3); }
+.shot { margin: 0; }
+.shot img {
+  /* width:auto, not 100%. With a fixed width the moment max-height bites it is
+     the SHAPE that gives, and a 2:3 picture of a person comes out squat. Auto
+     on both axes with a cap on each lets the picture fit the box and keep its
+     proportions, which is the whole point of showing it. */
+  width: auto; height: auto;
+  max-width: 100%; max-height: 62dvh;
+  margin-inline: auto; object-fit: contain;
+  border-radius: var(--r); border: 1px solid var(--hair); background: #000;
+}
+/* The moment in a saree shop is the unrolling, so the result is not faded in -
+   it is drawn down like cloth off a bolt. */
+.shot.after img { animation: unveil .76s cubic-bezier(.65,0,.35,1) both; }
+@keyframes unveil {
+  from { clip-path: inset(0 0 100% 0 round var(--r)); }
+  to   { clip-path: inset(0 0 0 0 round var(--r)); }
+}
+.shot figcaption { margin-top: 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.shot.before { display: none; }          /* desktop brings it back, side by side */
+body.comparing .shot.after img { display: none; }
+body.comparing .shot.before { display: block; }
+
+/* =============================================================== dock ===*/
+#act {
+  grid-area: act;
+  position: sticky; bottom: 0; z-index: 30;
+  display: flex; align-items: center; gap: var(--s-2);
+  min-height: var(--dock-h);
+  padding: var(--s-2) var(--gutter) calc(var(--s-2) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hair);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+#chips { display: flex; gap: var(--s-1); flex: none; }
+.chip {
+  position: relative; width: 46px; height: 46px; padding: 0;
+  border-radius: var(--r-sm); border: 1px dashed var(--line);
+  background: var(--surface); cursor: pointer; overflow: hidden;
+}
+.chip img { width: 100%; height: 100%; object-fit: cover; display: none; }
+.chip-glyph { color: var(--muted); font-size: 14px; font-weight: 600; }
+.chip[data-filled] { border-style: solid; border-color: var(--accent); }
+.chip[data-filled] img { display: block; }
+.chip[data-filled] .chip-glyph { display: none; }
+
+/* ================================================================ btn ===*/
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap); padding: 0 var(--s-4);
+  border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-weight: 600; cursor: pointer; text-align: center;
+  transition: transform .1s var(--ease), background .15s var(--ease);
+}
+.btn:active { transform: scale(.98); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--accent-ink); }
+.btn.ghost { background: transparent; border-color: var(--hair); font-weight: 400; color: var(--muted); }
+.btn.grow { flex: 1 1 auto; }
+.btn.xl { min-height: 64px; font-size: 19px; padding: 0 var(--s-5); }
+/* Disabled is signalled by more than a dim: it keeps a readable label. */
+.btn:disabled { background: var(--surface); border-color: var(--hair); color: var(--muted); cursor: default; transform: none; }
+.btn .short { display: none; }
+
+/* =============================================================== wait ===*/
+#wait { display: none; flex: 1 1 auto; align-items: center; gap: var(--s-3); }
+.lottie { width: 56px; height: 56px; flex: none; }
+.wait-text { min-width: 0; }
+.ladder { display: flex; gap: var(--s-2); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.ladder li { display: flex; align-items: center; gap: 5px; }
+.ladder li::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  border: 1px solid var(--line); background: transparent;
+}
+.ladder li[data-on]::before { background: var(--accent); border-color: var(--accent); }
+.ladder li[data-done]::before { background: var(--muted); border-color: var(--muted); }
+.waitnote { font-size: 14px; color: var(--text); margin-top: 2px; }
+#resultacts { display: none; flex: 1 1 auto; gap: var(--s-2); align-items: center; }
+
+/* ======================================================= stage wiring ===*/
+body[data-stage="choose"]  #resultpane { display: none; }
+body[data-stage="working"] #resultpane { display: none; }
+body[data-stage="working"] #go,
+body[data-stage="working"] #chips { display: none; }
+body[data-stage="working"] #wait { display: flex; }
+body[data-stage="result"]  #you,
+body[data-stage="result"]  #shelf,
+body[data-stage="result"]  #go,
+body[data-stage="result"]  #chips { display: none; }
+body[data-stage="result"]  #resultacts { display: flex; }
+
+/* ============================================================ attract ===*/
+#attract {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; text-align: center;
+  /* Not dead centre: on a tall panel mounted at standing height the middle is
+     above shoulder height. The block sits low so the only button on the screen
+     is inside the reach band. */
+  place-items: end center;
+  padding: var(--s-5) var(--s-5) 22vh;
+  background: radial-gradient(120% 90% at 50% 0%, #2a1a1d 0%, var(--bg) 60%);
+}
+#attract[hidden] { display: none; }
+.attract-in { display: grid; gap: var(--s-3); justify-items: center; max-width: 16ch; }
+.attract-note { font-size: 14px; color: var(--muted); max-width: 30ch; }
+.kicker { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+#attract h2 { font-size: clamp(38px, 9vw, 104px); line-height: 1; letter-spacing: -.02em; }
+.lede { color: var(--muted); }
+#attract .btn { margin-top: var(--s-3); animation: breathe 3.2s var(--ease) infinite; }
+@keyframes breathe { 50% { transform: scale(1.035); } }
+
+#idlewarn { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(0,0,0,.7); }
+#idlewarn[hidden] { display: none; }
+#idlewarn .sheet {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: var(--s-5); display: grid; gap: var(--s-3); justify-items: center; text-align: center; max-width: 24rem;
+}
+#debug {
+  grid-area: work; align-self: end;
+  font: 11px/1.6 ui-monospace, Menlo, monospace; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm);
+  padding: var(--s-2); white-space: pre-wrap; max-height: 40dvh; overflow: auto; margin-bottom: var(--s-3);
+}
+#debug[hidden] { display: none; }
+
+/* ==================================================== short landscape ===
+   A phone on its side, or a desktop window dragged short. Vertical furniture
+   is what breaks here, so the header goes and the dock becomes a right rail. */
+@media (orientation: landscape) and (max-height: 560px) {
+  body { grid-template-areas: "work act"; grid-template-columns: minmax(0,1fr) clamp(140px, 22vw, 220px); grid-template-rows: 100dvh; height: 100dvh; }
+  #bar { display: none; }
+  #work { overflow-y: auto; padding-top: var(--s-3); display: grid; gap: var(--s-3);
+          grid-template-columns: minmax(180px, 34%) minmax(0,1fr); align-items: start; }
+  #act { flex-direction: column; align-items: stretch; justify-content: center;
+         border-top: 0; border-left: 1px solid var(--hair); position: static; }
+  .btn.grow { flex: none; }
+  #chips { justify-content: center; }
+  .results { grid-template-columns: 1fr 1fr; }
+  .shot.before { display: block; }
+}
+
+/* ============================================================== kiosk ===
+   Portrait and big. Keyed on orientation because the panel is 1080 CSS px
+   wide - wider than a laptop - so any width-only rule sends it to desktop. */
+@media (min-width: 760px) and (orientation: portrait) {
+  :root { --gutter: 40px; --bar-h: 92px; --dock-h: 168px; --tap: 68px; --thumb: 250px; --floor: clamp(120px, 26vh, 520px); }
+  body { height: 100dvh; overflow: hidden;
+         grid-template-areas: "bar" "work" "act" "plinth";
+         grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h) var(--floor); }
+  #work { overflow-y: auto; overscroll-behavior: contain; }
+  #bar h1 { font-size: 30px; } .status { font-size: 17px; }
+  .step-h { font-size: 21px; } .step-h .num { width: 34px; height: 34px; font-size: 16px; }
+  .btn { font-size: 20px; } .btn.grow { max-width: 640px; margin-inline: auto; }
+  .chip { width: 72px; height: 72px; }
+  .tile .name { font-size: 16px; padding: var(--s-3); }
+  #plinth { grid-area: plinth; }
+  .lottie { width: 76px; height: 76px; }
+}
+
+/* ============================================================ desktop ===*/
+@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
+  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: 180px; --dock-h: 84px; }
+  body { height: 100dvh; overflow: hidden;
+         grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h); }
+  #work {
+    display: grid; gap: var(--s-5); align-items: start;
+    grid-template-columns: minmax(320px, 32vw) minmax(0, 1fr);
+    grid-template-areas: "you shelf";
+    overflow: hidden; padding-bottom: var(--s-4);
+  }
+  #you { grid-area: you; position: sticky; top: 0; }
+  #shelf { grid-area: shelf; overflow-y: auto; min-height: 0; max-height: 100%; overscroll-behavior: contain; padding-right: var(--s-2); }
+  #resultpane { grid-area: 1 / 1 / 2 / 3; overflow-y: auto; max-height: 100%; }
+  .results { grid-template-columns: 1fr 1fr; align-items: start; }
+  .shot.before { display: block; }
+  .shot img { max-height: calc(100dvh - var(--bar-h) - var(--dock-h) - 90px); }
+  #act { justify-content: flex-end; }
+  #act #chips { margin-right: auto; }
+  .btn.grow { flex: none; min-width: 260px; }
+  .frame { max-height: 56dvh; aspect-ratio: 3/4; margin-inline: auto; width: auto; }
+  .frame { aspect-ratio: 3 / 4; }
+}
+
+/* A dock this narrow needs the shorter label. */
+@media (max-width: 460px) {
+  .btn .long { display: none; } .btn .short { display: inline; }
+  /* The title truncated to "See you..." tells nobody anything, and on a phone
+     the customer already knows what they opened. The status earns the room. */
+  #bar h1 { display: none; }
+  .chooser { padding: var(--s-3); gap: var(--s-2); min-height: 0; }
+  .chooser .glyph { width: 22px; height: 40px; }
+  /* Two chips plus a button is tight at 390px; the chips are the first to go
+     small, because the button is the one that has to stay hittable. */
+  .chip { width: 40px; height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>See yourself in it</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<!--
+  Two attributes drive the whole interface: data-stage (where we are) and
+  data-photo (what step one has). Everything else is CSS reacting to them,
+  which is why there are no show/hide calls scattered through app.js.
+-->
+<body data-stage="choose" data-photo="empty">
+
+<!-- Idle. A kiosk sitting on a half-filled form looks like something somebody
+     else left behind, so it returns here and clears the previous customer. -->
+<div id="attract" hidden>
+  <div class="attract-in">
+    <p class="kicker">Virtual try-on</p>
+    <h2>See yourself in it</h2>
+    <p class="lede">Try on anything in the shop without changing.</p>
+    <button id="begin" class="btn primary xl">Touch to begin</button>
+    <p class="attract-note">Takes about a minute. Your photograph is cleared when you finish.</p>
+  </div>
+</div>
+
+<header id="bar">
+  <h1>See yourself in it</h1>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <button id="staff" class="staff" aria-label="Technical details, for staff">?</button>
+</header>
+
+<main id="work">
+
+  <section id="you">
+    <h2 class="step-h"><span class="num">1</span> Your photograph</h2>
+
+    <!-- The empty state is a chooser, not a frame. A 3:4 black box reserved for
+         something that does not exist yet was costing ~300px before anything
+         real, at every size. -->
+    <div class="chooser">
+      <svg class="glyph" viewBox="0 0 40 72" aria-hidden="true">
+        <circle cx="20" cy="11" r="8"/>
+        <path d="M20 22c-7 0-12 4-12 10v14h5l2 24h10l2-24h5V32c0-6-5-10-12-10z"/>
+      </svg>
+      <p class="chooser-copy">A full-length picture works best</p>
+      <div class="chooser-acts">
+        <button id="start" class="btn">Take my photo</button>
+        <label class="btn" id="uploadlabel">Use a photo I have
+          <input type="file" id="upload" accept="image/*" hidden>
+        </label>
+      </div>
+    </div>
+
+    <div class="frame" id="frame">
+      <video id="video" playsinline muted autoplay></video>
+      <img id="still" alt="Your photograph">
+      <p class="hint">Stand so all of you is in the picture</p>
+      <div class="frame-acts">
+        <button id="capture" class="btn primary">Take the photo</button>
+        <button id="cancelcam" class="btn ghost">Cancel</button>
+        <button id="retake" class="btn ghost">Use a different photo</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="shelf">
+    <h2 class="step-h"><span class="num">2</span> Choose what to try on</h2>
+    <div id="garments"></div>
+  </section>
+
+  <section id="resultpane">
+    <h2 class="step-h">Here you are</h2>
+    <div class="results">
+      <figure class="shot after">
+        <img id="result" alt="You, wearing the garment you chose">
+        <figcaption>Wearing it</figcaption>
+      </figure>
+      <figure class="shot before">
+        <img id="before" alt="The photograph you gave">
+        <figcaption>Your photo</figcaption>
+      </figure>
+    </div>
+  </section>
+
+</main>
+
+<!-- The dock. Never in document flow: that is what put the primary action
+     below the fold, and on a kiosk out of arm's reach at the same time. -->
+<div id="act">
+  <div id="chips">
+    <button class="chip" id="chip-you" aria-label="Your photograph. Touch to change it.">
+      <img id="chip-you-img" alt=""><span class="chip-glyph">1</span>
+    </button>
+    <button class="chip" id="chip-garment" aria-label="The garment. Touch to change it.">
+      <img id="chip-garment-img" alt=""><span class="chip-glyph">2</span>
+    </button>
+  </div>
+
+  <button id="go" class="btn primary grow" disabled>
+    <span class="long">See yourself in it</span><span class="short">Try it on</span>
+  </button>
+
+  <!-- The wait lives here rather than taking the screen, so the shelf stays
+       browsable through a wait that can run to a few minutes. -->
+  <div id="wait">
+    <div id="lottie" class="lottie" aria-hidden="true"></div>
+    <div class="wait-text">
+      <ol class="ladder">
+        <li data-k="queued">In the queue</li>
+        <li data-k="working">Draping it</li>
+        <li data-k="nearly">Nearly there</li>
+      </ol>
+      <p id="waitnote" class="waitnote" role="status" aria-live="polite">Starting&hellip;</p>
+    </div>
+  </div>
+
+  <div id="resultacts">
+    <button id="compare" class="btn">Hold to compare</button>
+    <button id="another" class="btn primary grow">Try another</button>
+    <button id="restart" class="btn ghost">Done</button>
+  </div>
+</div>
+
+<!-- Deliberately empty. On a tall screen mounted at standing height the bottom
+     fifth is near knee height, so nothing goes there. -->
+<div id="plinth" aria-hidden="true"></div>
+
+<div id="idlewarn" hidden role="alertdialog" aria-labelledby="idlewarn-h">
+  <div class="sheet">
+    <h2 id="idlewarn-h">Still there?</h2>
+    <p>This screen will clear in <strong id="idlecount">20</strong> seconds.</p>
+    <button id="stay" class="btn primary xl">I'm still here</button>
+  </div>
+</div>
+
+<pre id="debug" hidden></pre>
+
+<script defer src="vendor/lottie_light.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
