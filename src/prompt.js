@@ -19,6 +19,13 @@ IMAGE 1 is a photograph of a person.`;
 
 const KEEP_PERSON = `Keep from image 1: the person's face, hair, skin tone, body shape and height. It must be recognisably the same person.`;
 
+// The head is the other half of keeping the person, and it goes wrong in a
+// specific direction: too big. A generator is trying to keep the face legible
+// and recognisable, and the cheapest way to do that is to draw it larger - so
+// the result is a correct face on a body it does not belong to. Giving it the
+// actual proportions of a standing figure is what stops it.
+const KEEP_PROPORTION = `Proportion: the head must belong to the body. A standing adult is roughly seven to eight head-heights tall, the shoulders are about two head-widths across, and the neck is no wider than the jaw. Do not enlarge the head to keep the face recognisable - a bigger head is not a clearer likeness, it is a different person, and it is the commonest way this goes wrong. Take the build from image 1 as well as the face: their height, their shoulder width, the length of their legs against their torso, the size of their hands. If the whole figure will not fit the frame at the right proportion, show less background rather than a smaller body.`;
+
 // The failure this exists for: a generator keeps the face it was given and
 // then renders the arms, neck and hands a shade or two lighter, so the result
 // reads as a face placed on somebody else's body. It is the first thing a
@@ -39,6 +46,8 @@ Generate one photorealistic, full-length image of THE PERSON FROM IMAGE 1 wearin
 
 ${KEEP_PERSON}
 
+${KEEP_PROPORTION}
+
 ${KEEP_SKIN}
 
 Keep from image 2: the saree's exact fabric, colour and every shade in it, its border, its woven or embroidered motifs, and the way it is draped - including which shoulder the pallu falls over. Do not redesign, recolour, simplify or embellish the garment.
@@ -57,6 +66,8 @@ Generate one photorealistic, full-length image of THE PERSON FROM IMAGE 1 wearin
 
 ${KEEP_PERSON}
 
+${KEEP_PROPORTION}
+
 ${KEEP_SKIN}
 
 Keep from image 2, exactly: every garment shown and nothing added or taken away. The colour, fabric and weave of each piece. The neckline and the collar. The closure, and its buttons. The sleeve length and shape. The fit through the shoulder and the waist. The hem of a skirt, dress or trousers, and where on the leg it falls. Any check, stripe or print at the same scale, running the same way.
@@ -74,6 +85,8 @@ IMAGE 2 is a men's formal outfit worn by a model.
 Generate one photorealistic, full-length image of THE PERSON FROM IMAGE 1 wearing THE EXACT OUTFIT FROM IMAGE 2.
 
 ${KEEP_PERSON}
+
+${KEEP_PROPORTION}
 
 ${KEEP_SKIN}
 

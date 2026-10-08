@@ -56,6 +56,19 @@ for (const k of GARMENT_KINDS) {
      /light and shadow may/i.test(k.prompt));
 }
 
+// Head-to-body proportion, in all three. A generator enlarges the head to keep
+// the face legible, which produces a correct face on a body it does not belong
+// to - and a customer reads that as "it does not look like me" without being
+// able to say why.
+for (const k of GARMENT_KINDS) {
+  ok(`${k.id} gives the figure real proportions`,
+     /head-heights/i.test(k.prompt) && /shoulders/i.test(k.prompt));
+  ok(`${k.id} forbids enlarging the head`,
+     /do not enlarge the head/i.test(k.prompt));
+  ok(`${k.id} takes the build, not just the face`,
+     /build from image 1/i.test(k.prompt));
+}
+
 const bad = checks.filter(([, p]) => !p);
 for (const [n, p] of checks) console.log(`${p ? "PASS" : "FAIL"}  ${n}`);
 console.log(bad.length ? `\n${bad.length} failed` : `\nall ${checks.length} passed`);
