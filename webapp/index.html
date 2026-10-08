@@ -102,25 +102,24 @@
     <span class="long">See yourself in it</span><span class="short">Try it on</span>
   </button>
 
-  <!-- The wait lives here rather than taking the screen, so the shelf stays
-       browsable through a wait that can run to a few minutes. -->
-  <div id="wait">
-    <div id="lottie" class="lottie" aria-hidden="true"></div>
-    <div class="wait-text">
-      <ol class="ladder">
-        <li data-k="queued">In the queue</li>
-        <li data-k="working">Draping it</li>
-        <li data-k="nearly">Nearly there</li>
-      </ol>
-      <p id="waitnote" class="waitnote" role="status" aria-live="polite">Starting&hellip;</p>
-    </div>
-  </div>
-
   <div id="resultacts">
     <button id="compare" class="btn">Hold to compare</button>
     <button id="another" class="btn primary grow">Try another</button>
     <button id="restart" class="btn ghost">Done</button>
   </div>
+</div>
+
+<!-- The wait takes the whole screen. There is nothing useful to do while it
+     runs, and on a shared screen a customer who wanders off mid-generation
+     should not leave the shelf open behind them. -->
+<div id="wait">
+  <div id="lottie" class="lottie" aria-hidden="true"></div>
+  <p id="pct" class="pct">0%</p>
+  <div id="meter" class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="How far along your picture is">
+    <span id="meterfill" class="meterfill"></span>
+  </div>
+  <p id="waitnote" class="waitnote" role="status" aria-live="polite">Making your picture</p>
+  <p id="waitsub" class="waitsub">This usually takes about a minute.</p>
 </div>
 
 <!-- Deliberately empty. On a tall screen mounted at standing height the bottom

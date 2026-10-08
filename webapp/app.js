@@ -10,6 +10,7 @@
 
 import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
 import { available, garments, generate } from "./tryon-client.js";
+import { progressAt } from "./progress.js";
 
 const $ = (id) => document.getElementById(id);
 const body = document.body;
@@ -21,7 +22,8 @@ const el = {
   garmentsBox: $("garments"), go: $("go"),
   chipYou: $("chip-you"), chipYouImg: $("chip-you-img"),
   chipGarment: $("chip-garment"), chipGarmentImg: $("chip-garment-img"),
-  waitnote: $("waitnote"), lottie: $("lottie"),
+  waitnote: $("waitnote"), waitsub: $("waitsub"), lottie: $("lottie"),
+  pct: $("pct"), meter: $("meter"), meterfill: $("meterfill"),
   result: $("result"), before: $("before"),
   compare: $("compare"), another: $("another"), restart: $("restart"),
   attract: $("attract"), begin: $("begin"),
@@ -172,13 +174,42 @@ const urlToDataUrl = async (url) =>
 
 // ------------------------------------------------------------------- run
 
-const LADDER = ["queued", "working", "nearly"];
-function ladder(at) {
-  const i = LADDER.indexOf(at);
-  document.querySelectorAll(".ladder li").forEach((li, n) => {
-    li.toggleAttribute("data-on", n === i);
-    li.toggleAttribute("data-done", i > -1 && n < i);
-  });
+// The curve lives in progress.js so it can be checked without a browser - see
+// test/progress.mjs. Everything here is just painting it.
+
+let ticker = null;
+let startedAt = 0;
+
+function setMeter(v) {
+  const p = Math.max(0, Math.min(100, v));
+  el.pct.textContent = `${Math.round(p)}%`;
+  el.meterfill.style.width = `${p}%`;
+  el.meter.setAttribute("aria-valuenow", String(Math.round(p)));
+}
+
+function tick() {
+  setMeter(progressAt((Date.now() - startedAt) / 1000));
+}
+
+function startMeter() {
+  stopMeter();
+  startedAt = Date.now();
+  setMeter(0);
+  ticker = setInterval(tick, 250);
+}
+
+// The clock restarts the moment it is actually being generated, so a wait in
+// the queue does not spend the bar before the work has begun.
+function meterFromNow() { startedAt = Date.now(); }
+
+function stopMeter() { clearInterval(ticker); ticker = null; }
+
+// Let 100% be seen before the picture replaces it, or the number never
+// arrives anywhere and the bar just vanishes mid-climb.
+async function completeMeter() {
+  stopMeter();
+  setMeter(100);
+  await new Promise((r) => setTimeout(r, 650));
 }
 
 let anim = null;
@@ -198,27 +229,36 @@ function refresh() {
 }
 
 async function run() {
+  let started = false;
   stage("working");
   playSewing();
-  ladder("queued");
-  el.waitnote.textContent = "Sending it over…";
+  startMeter();
+  el.waitnote.textContent = "Making your picture";
+  el.waitsub.textContent = "This usually takes about a minute.";
   try {
     const { image, notes } = await generate({
       person,
       saree: garment.dataUrl,
       prompt: promptFor(garment.kind),
+      // The big line stays constant. The small one carries the stage, and the
+      // meter's clock only starts once it is really being generated.
       onStage: (s) => {
-        if (s === "noworker") { ladder("queued"); el.waitnote.textContent = "Waiting for the shop's computer…"; }
-        else if (s === "queued") { ladder("queued"); el.waitnote.textContent = "In the queue…"; }
-        else { ladder("working"); el.waitnote.textContent = "Draping it — about a minute"; }
+        if (s === "working" && !started) { started = true; meterFromNow(); }
+        el.waitnote.textContent =
+          s === "noworker" ? "Waiting for the shop's computer" : "Making your picture";
+        el.waitsub.textContent =
+          s === "noworker" ? "Nobody there has the extension running."
+          : s === "queued" ? "Waiting its turn\u2026"
+          : "This usually takes about a minute.";
       },
     });
-    ladder("nearly");
+    await completeMeter();
     el.result.src = image;
     el.before.src = person;
     lastDiagnostic = notes.join("\n");
     stage("result");
   } catch (e) {
+    stopMeter();
     say("That didn't work. Shall we try again?", "bad", e.message);
     stage("choose");
   }

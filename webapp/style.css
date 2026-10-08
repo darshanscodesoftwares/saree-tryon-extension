@@ -313,27 +313,47 @@ body.comparing .shot.before { display: block; }
 .btn:disabled { background: var(--surface); border-color: var(--hair); color: var(--muted); cursor: default; transform: none; }
 .btn .short { display: none; }
 
-/* =============================================================== wait ===*/
-#wait { display: none; flex: 1 1 auto; align-items: center; gap: var(--s-3); }
-.lottie { width: 56px; height: 56px; flex: none; }
-.wait-text { min-width: 0; }
-.ladder { display: flex; gap: var(--s-2); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-.ladder li { display: flex; align-items: center; gap: 5px; }
-.ladder li::before {
-  content: ""; width: 7px; height: 7px; border-radius: 50%;
-  border: 1px solid var(--line); background: transparent;
+/* =============================================================== wait ===
+   The whole screen, because there is nothing else to do while it runs and a
+   customer who wanders off mid-generation should not leave the shelf open
+   behind them. */
+#wait {
+  position: fixed; inset: 0; z-index: 55;
+  display: none;
+  align-content: center; justify-items: center; gap: var(--s-3);
+  padding: var(--s-5); text-align: center;
+  background: radial-gradient(120% 90% at 50% 10%, #16231f 0%, var(--bg) 62%);
 }
-.ladder li[data-on]::before { background: var(--accent); border-color: var(--accent); }
-.ladder li[data-done]::before { background: var(--muted); border-color: var(--muted); }
-.waitnote { font-size: 14px; color: var(--text); margin-top: 2px; }
+body[data-stage="working"] #wait { display: grid; }
+.lottie { width: clamp(132px, 23vw, 220px); height: clamp(132px, 23vw, 220px); margin-bottom: calc(var(--s-3) * -1); }
+/* A number and a bar, rather than three dots. A dot that has been lit for
+   ninety seconds says nothing; a number that is still climbing says the
+   machine is alive. */
+.pct {
+  font-variant-numeric: tabular-nums;          /* so it does not jitter */
+  font-size: clamp(32px, 5.2vw, 54px); font-weight: 300; line-height: 1;
+  letter-spacing: -.03em; color: var(--text);
+}
+.meter {
+  width: min(320px, 66vw); height: 6px; border-radius: 99px;
+  background: var(--surface-2); overflow: hidden;
+}
+.meterfill {
+  display: block; height: 100%; width: 0%;
+  border-radius: 99px; background: var(--accent);
+  transition: width .6s cubic-bezier(.3,.9,.3,1);
+}
+.waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+.waitsub { font-size: clamp(12px, 1.4vw, 15px); color: var(--muted); }
 #resultacts { display: none; flex: 1 1 auto; gap: var(--s-2); align-items: center; }
 
 /* ======================================================= stage wiring ===*/
 body[data-stage="choose"]  #resultpane { display: none; }
-body[data-stage="working"] #resultpane { display: none; }
-body[data-stage="working"] #go,
-body[data-stage="working"] #chips { display: none; }
-body[data-stage="working"] #wait { display: flex; }
+/* Everything else goes away: the wait is the only thing on screen. */
+body[data-stage="working"] #bar,
+body[data-stage="working"] #work,
+body[data-stage="working"] #act,
+body[data-stage="working"] #plinth { display: none; }
 body[data-stage="result"]  #you,
 body[data-stage="result"]  #shelf,
 body[data-stage="result"]  #go,
@@ -405,7 +425,9 @@ body[data-stage="result"]  #resultacts { display: flex; }
   .chip { width: 72px; height: 72px; }
   .tile .name { font-size: 16px; padding: var(--s-3); }
   #plinth { grid-area: plinth; }
-  .lottie { width: 76px; height: 76px; }
+  .lottie { width: 280px; height: 280px; }
+  .pct { font-size: 68px; }
+  .meter { width: 420px; height: 8px; }
 }
 
 /* ============================================================ desktop ===*/

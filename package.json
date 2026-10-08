@@ -6,6 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node test/prompts.mjs && node test/contrast.mjs"
+    "test": "node test/prompts.mjs && node test/contrast.mjs && node test/progress.mjs"
   }
 }
