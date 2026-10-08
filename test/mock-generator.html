@@ -27,6 +27,7 @@
 <!-- ?nofile=1 removes this, to exercise the paste fallback that any site
      without a reachable file input will take. -->
 <input type="file" id="files" accept="image/*" multiple hidden>
+<div id="thumbs"></div>
 <button aria-label="Send message" id="send">Send</button>
 <pre id="log"></pre>
 
@@ -40,15 +41,41 @@ host.innerHTML = shape === "textarea"
   ? '<textarea id="composer" rows="4"></textarea>'
   : '<div id="composer" contenteditable="true"></div>';
 
-// Record what the page actually receives, the way a real one would.
-const got = { files: [], text: "", clicked: false };
-document.getElementById("files")?.addEventListener("change", (e) => {
-  got.files = [...e.target.files].map((f) => `${f.name} ${f.type} ${f.size}B`);
-});
-document.getElementById("composer").addEventListener("paste", (e) => {
-  got.files = [...(e.clipboardData?.files ?? [])].map((f) => `${f.name} ${f.type} ${f.size}B`);
-});
-document.getElementById("send").addEventListener("click", () => (got.clicked = true));
+// Record what the page actually receives, and behave the way a real one does
+// while receiving it: show a thumbnail, and keep Send disabled until the
+// "upload" finishes. Both are what inject.js now watches for instead of
+// sleeping for a fixed interval and hoping.
+//
+// ?upload=N sets that delay. The default is longer than the 600ms the old code
+// waited, so this page fails against it and passes against the fix.
+const UPLOAD_MS = Number(params.get("upload") ?? 1200);
+const send = document.getElementById("send");
+send.disabled = true;
+
+const got = { files: [], text: "", clicked: false, clickedAt: 0, enabledAt: 0 };
+
+// ?ignore=1 is a page that HAS a file input and a composer and silently does
+// nothing with either - the commonest real failure, where the first image-
+// accepting input on the page belongs to something else entirely. It is here
+// because "dispatchEvent did not throw" reports that page as a success.
+const IGNORES = params.get("ignore");
+
+function receive(list) {
+  if (IGNORES) return;
+  const files = [...(list ?? [])];
+  if (!files.length) return;
+  got.files = files.map((f) => `${f.name} ${f.type} ${f.size}B`);
+  for (const f of files) {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(f);   // a blob: thumbnail, as a real page makes
+    img.width = 40;
+    document.getElementById("thumbs").appendChild(img);
+  }
+  setTimeout(() => { send.disabled = false; got.enabledAt = performance.now(); }, UPLOAD_MS);
+}
+document.getElementById("files")?.addEventListener("change", (e) => receive(e.target.files));
+document.getElementById("composer").addEventListener("paste", (e) => receive(e.clipboardData?.files));
+send.addEventListener("click", () => { got.clicked = true; got.clickedAt = performance.now(); });
 </script>
 <script src="../src/inject.js"></script>
 <script>
@@ -68,13 +95,24 @@ document.getElementById("send").addEventListener("click", () => (got.clicked = t
   const el = document.getElementById("composer");
   got.text = el.value !== undefined ? el.value : el.textContent;
 
-  const checks = [
+  const checks = IGNORES ? [
+    // A page that takes nothing must be reported as having taken nothing.
+    ["it noticed the page took neither image", res.attached === false],
+    ["it did not claim success",               res.ok === false],
+    ["it said so in words",                    res.notes.some((n) => /taken neither|nothing/.test(n))],
+    ["it tried the paste fallback too",        res.notes.some((n) => /trying paste/.test(n))],
+    ["it did not press send on nothing",       got.clicked === false],
+  ] : [
     ["two images reached the page", got.files.length === 2],
     ["they are the right two",      got.files.join().includes("person.jpg") && got.files.join().includes("saree.jpg")],
     ["the prompt was typed",        got.text.includes("TEST PROMPT line one")],
     ["its second line survived",    got.text.includes("line two")],
     ["send was pressed",            got.clicked === true],
+    ["it waited for the upload instead of racing it",
+                                    got.clicked && got.clickedAt >= got.enabledAt],
     ["inject.js agreed it worked",  res.ok === true],
+    ["it reported attaching, having checked",
+                                    res.attached === true && res.notes.some((n) => /attached|pasted/.test(n))],
   ];
   const bad = checks.filter(([, ok]) => !ok).length;
   out.innerHTML = `shape: ${shape}\nadapter: ${res.adapter}\n\n`

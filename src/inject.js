@@ -35,6 +35,37 @@
   const anyFileInput = () =>
     qsa('input[type="file"]').find((i) => !i.accept || /image|\*/.test(i.accept)) || null;
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Poll rather than guess. Every timing in here used to be a fixed sleep
+  // chosen to feel about right, which on a slow upload is simply wrong, and on
+  // a fast one is time spent doing nothing.
+  async function waitFor(test, ms) {
+    const stop = Date.now() + ms;
+    for (;;) {
+      if (test()) return true;
+      if (Date.now() > stop) return false;
+      await sleep(120);
+    }
+  }
+
+  // What a page does when it accepts an image is show you one. Nearly every
+  // generator renders a pending attachment as a thumbnail from a blob: or
+  // data: URL, so counting those is the closest thing to proof we can get from
+  // outside - and far better than the old test, which was that dispatchEvent
+  // did not throw. That is true even when the page ignored the file entirely.
+  const thumbCount = () => {
+    let n = 0;
+    for (const im of qsa("img")) if (/^(blob|data):/.test(im.src || "")) n++;
+    for (const el of qsa('[style*="blob:"]')) n++;
+    return n;
+  };
+
+  // Many sites mark a button unusable with aria-disabled rather than the
+  // property, and a few only grey it out in CSS.
+  const pressable = (b) =>
+    b && !b.disabled && b.getAttribute("aria-disabled") !== "true";
+
   const ADAPTERS = [
     {
       id: "gemini",
@@ -80,38 +111,62 @@
   // file input is the quieter of the two when it exists; pasting is what works
   // on everything else, since a generator that takes a dropped image takes a
   // pasted one.
-  function attachFiles(adapter, files, notes) {
+  const transfer = (files) => {
+    const dt = new DataTransfer();
+    files.forEach((f) => dt.items.add(f));
+    return dt;
+  };
+
+  // Eight seconds is a large photograph over a shop's wifi. Past that the page
+  // has almost certainly taken nothing rather than merely being slow.
+  const ATTACH_WAIT = 8000;
+
+  async function attachFiles(adapter, files, notes) {
+    const before = thumbCount();
     const input = adapter.fileInput();
     if (input) {
       try {
-        const dt = new DataTransfer();
-        files.forEach((f) => dt.items.add(f));
-        input.files = dt.files;
+        input.files = transfer(files).files;
+        // The first input on a page that accepts images is not always the one
+        // wired to the composer - it can belong to an avatar picker or a
+        // dialog that is closed. Assigning to the wrong one throws nothing, so
+        // without this the paste fallback would never run.
+        if (input.files.length !== files.length) throw new Error("it did not keep them");
         input.dispatchEvent(new Event("change", { bubbles: true }));
-        notes.push(`attached ${files.length} image(s) to a file input`);
-        return true;
+        if (await waitFor(() => thumbCount() > before, ATTACH_WAIT)) {
+          notes.push(`attached ${files.length} image(s) to a file input`);
+          return true;
+        }
+        notes.push("a file input took them but nothing appeared - trying paste instead");
       } catch (e) {
-        notes.push(`file input refused them (${e.message}), falling back to paste`);
+        notes.push(`file input refused them (${e.message}) - trying paste instead`);
       }
     }
     const target = adapter.composer() || document.body;
     try {
-      const dt = new DataTransfer();
-      files.forEach((f) => dt.items.add(f));
       target.focus?.();
-      target.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-      notes.push(`pasted ${files.length} image(s) into the composer`);
-      return true;
+      target.dispatchEvent(new ClipboardEvent("paste", {
+        clipboardData: transfer(files), bubbles: true, cancelable: true,
+      }));
     } catch (e) {
       notes.push(`paste failed: ${e.message}`);
       return false;
     }
+    if (await waitFor(() => thumbCount() > before, ATTACH_WAIT)) {
+      notes.push(`pasted ${files.length} image(s) into the composer`);
+      return true;
+    }
+    notes.push("nothing the page showed changed - it has probably taken neither image");
+    return false;
   }
 
   // Typing into someone else's framework. A plain `.value = x` is ignored by
   // React, which tracks its own copy, so the native setter is called and an
   // input event fired by hand; a contenteditable takes execCommand instead,
   // which is deprecated but still the only thing every editor listens to.
+  const readComposer = (el) =>
+    !el ? "" : el.value !== undefined ? el.value : el.textContent;
+
   function setPrompt(adapter, text, notes) {
     const el = adapter.composer();
     if (!el) {
@@ -151,23 +206,38 @@
       notes.push(`treating this as ${adapter.name}`);
       const files = images.map((im, i) => dataUrlToFile(im.dataUrl, im.name || `image-${i + 1}.jpg`));
 
-      const attached = attachFiles(adapter, files, notes);
-      // The images land asynchronously - most sites upload or thumbnail them -
-      // so the prompt is written after a beat, or it can be wiped by their own
-      // re-render.
-      await new Promise((r) => setTimeout(r, 400));
-      const typed = setPrompt(adapter, prompt, notes);
+      const attached = await attachFiles(adapter, files, notes);
+      // A page usually re-renders once more just after the thumbnail lands,
+      // and that render is what used to wipe the prompt.
+      await sleep(250);
+
+      let typed = setPrompt(adapter, prompt, notes);
+      // Written, then read back: a composer belonging to someone else's
+      // framework can accept the text and drop it on the next render, and an
+      // empty box is indistinguishable from a working one until you look.
+      if (typed) {
+        const head = prompt.slice(0, 40);
+        if (!await waitFor(() => (readComposer(adapter.composer()) || "").includes(head), 1500)) {
+          notes.push("the prompt did not stay in the box - writing it again");
+          typed = setPrompt(adapter, prompt, notes);
+        }
+      }
 
       let sent = false;
       if (autoSend) {
-        await new Promise((r) => setTimeout(r, 600));
+        // Generators disable send while an upload is still running, so the
+        // only honest way to press it is to wait for it to come back. The old
+        // fixed 600ms lost that race on anything but a small image.
+        const ready = await waitFor(() => pressable(adapter.send()), 15000);
         const btn = adapter.send();
-        if (btn && !btn.disabled) {
+        if (ready && btn) {
           btn.click();
           sent = true;
           notes.push("pressed send");
+        } else if (btn) {
+          notes.push("send is still disabled after 15s - press it yourself");
         } else {
-          notes.push(btn ? "send button is still disabled - press it yourself" : "no send button found");
+          notes.push("no send button found - press it yourself");
         }
       }
       return { ok: attached && typed, adapter: adapter.id, attached, typed, sent, notes };
