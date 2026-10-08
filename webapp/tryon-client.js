@@ -19,7 +19,7 @@ const api = (path) => new URL(path, window.location.href).href;
 
 // Long, because the wait is a real image model. A kiosk that gave up early
 // would look broken more often than the model is slow.
-const DEADLINE = 240000;
+const DEADLINE = 260000;
 const POLL_EVERY = 1500;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

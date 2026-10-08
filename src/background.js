@@ -89,14 +89,80 @@ async function generate({ id, person, saree, prompt }) {
   }
   // Only now start watching, so everything already on screen counts as "the
   // question" and anything new counts as "the answer".
+  // Remembered BEFORE the watcher starts. The other way round leaves a gap in
+  // which a result can arrive, find nothing remembered, and be dropped without
+  // a word.
+  await remember(id);
   await chrome.scripting.executeScript({ target, files: ["src/harvest.js"] });
   await chrome.scripting.executeScript({
     target,
-    func: (rid) => window.__sareeHarvest.start(rid),
-    args: [id],
+    // The two we uploaded go with it, so the page can be asked the only
+    // question that has a certain answer: is this picture one of mine?
+    func: (rid, mine) => window.__sareeHarvest.start(rid, false, mine),
+    args: [id, [person, saree]],
   });
-  await remember(id);
+  watch(tab.id, id, [person, saree]);      // not awaited: it outlives this call
   return { ok: true, pending: true, notes: sent.notes };
+}
+
+// How long anyone waits for one picture. Laddered on purpose: the watcher in
+// the page gives up at 200s, this at 210s, the screen at 260s - so whoever
+// gives up first has something to say, and nobody reports their own timeout
+// when a real answer was a second away.
+const GIVE_UP_AFTER = 210000;
+
+// The watcher inside the page can die without saying so: the tab reloads, the
+// page navigates, the injected context goes. Then a job hangs until the screen
+// gives up, with the finished picture sitting on screen the whole time. So the
+// worker checks back from outside rather than trusting the push.
+async function watch(tabId, id, mine) {
+  const until = Date.now() + GIVE_UP_AFTER;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 5000));
+    if (!(await recall(id))) return;             // already delivered
+
+    let state = null;
+    try {
+      [{ result: state }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => window.__sareeHarvest?.peek?.() ?? null,
+      });
+    } catch {
+      return finish(id, { notes: ["the generator's tab was closed"] });
+    }
+
+    if (!state) {
+      // Script gone but the tab alive: the page reloaded or navigated under
+      // it. Put it back, told to take what is already there.
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: ["src/harvest.js"] });
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          // Recovery skips the quiet period, so it needs the byte test more
+          // than the first run does, not less.
+          func: (rid, ours) => window.__sareeHarvest.start(rid, true, ours),
+          args: [id, mine],
+        });
+      } catch { return finish(id, { notes: ["lost the generator's tab"] }); }
+      continue;
+    }
+
+    if (state.done && state.payload) {
+      const p = state.payload;
+      const image = p.dataUrl || p.url || null;
+      return finish(id, p.ok && image
+        ? { image, notes: p.notes ?? [] }
+        : { notes: p.notes ?? ["nothing that looked like a picture arrived"] });
+    }
+  }
+  await finish(id, { notes: ["the generator did not finish in time"] });
+}
+
+// Deliver once, whoever gets there first - the push or the watcher.
+async function finish(id, body) {
+  if (!(await recall(id))) return;
+  await forget(id);
+  await deliver(id, body);
 }
 
 // ---------------------------------------------------------------- the queue
@@ -219,15 +285,12 @@ chrome.runtime.onMessage.addListener((msg) => {
 
   if (msg?.type !== "tryon:harvested") return false;
   (async () => {
-    if (!(await recall(msg.id))) return;   // not ours, or already answered
-    await forget(msg.id);
     const image = msg.dataUrl || msg.url || null;
-    await deliver(
-      msg.id,
-      msg.ok && image
-        ? { image, notes: msg.notes ?? [] }
-        : { notes: msg.notes ?? ["nothing that looked like a picture arrived"] }
-    );
+    // The fast path. finish() delivers once, so if the watcher got here first
+    // this does nothing.
+    await finish(msg.id, msg.ok && image
+      ? { image, notes: msg.notes ?? [] }
+      : { notes: msg.notes ?? ["nothing that looked like a picture arrived"] });
     workLoop();                            // straight back to waiting
   })();
   return false;

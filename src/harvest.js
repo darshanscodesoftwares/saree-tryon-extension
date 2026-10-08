@@ -20,13 +20,26 @@
   // minutes. Nothing in the extension sets them.
   const CFG = window.__sareeHarvestConfig ?? {};
 
+  // Printed in the notes so the ? button says which code actually ran. An
+  // injected file is only re-read when the extension is reloaded, and "did it
+  // reload?" has cost more time here than any bug.
+  const BUILD = 4;
+
+  // Nothing is accepted for this long after sending. The page re-hosts our own
+  // uploads within a few seconds of the send - new URL, same picture - and a
+  // generation takes a minute or more. So a candidate that turns up almost
+  // immediately is ours, whatever the markup says about whose turn it is in.
+  // This needs no knowledge of the page at all, which is the point: the
+  // selector-based rule has now been wrong twice.
+  const QUIET_FOR = CFG.quietFor ?? 25000;
+
   // A generated saree is a large picture. Nothing else on these pages is - but
   // a site may show it at a smaller size than it generated, so this is lower
   // than the picture actually is. Avatars and icons are nowhere near it.
   const MIN_SIDE = CFG.minSide ?? 320;
   // Long, because an image model under load is slow and a kiosk that gives up
   // at sixty seconds would look broken more often than the model is.
-  const GIVE_UP_AFTER = CFG.giveUpAfter ?? 180000;
+  const GIVE_UP_AFTER = CFG.giveUpAfter ?? 200000;
   // The src can change two or three times as a progressive render sharpens.
   // Taking the first frame gets you a blurred one.
   const STABLE_FOR = CFG.stableFor ?? 1500;
@@ -39,12 +52,31 @@
   // Narrow is still tried first because it cannot pick up the two images we
   // just uploaded, which the page echoes back inside the USER's turn moments
   // after sending and which are also new and also big.
+  // OUR OWN IMAGES ARE IN THE USER'S TURN, AND THEY MOVE.
+  //
+  // This is the one that bit. A page re-hosts an upload after sending - the
+  // src swaps from a blob: URL to a CDN one - and that happens well after the
+  // snapshot below, so the customer's own photograph looks like a brand new
+  // image. It is new, it is large, and a loose selector will hand it back as
+  // the answer while the real generation is still running.
+  //
+  // No amount of waiting fixes that, because the re-host has no deadline. The
+  // only reliable rule is structural: whatever else is true, the answer is
+  // never inside the turn we wrote.
+  const ours = (im) =>
+    !!im.closest('[data-message-author-role="user"], [data-message-author-role="system"]');
+
   const WAYS = [
     ["the assistant's turn", () => qsa('[data-message-author-role="assistant"] img')],
-    ["a model response", () => qsa("model-response img, message-content img, [data-message-author-role] img")],
+    ["a model response", () => qsa("model-response img, message-content img")],
     ["the conversation", () => qsa("main img, article img, [role='presentation'] img")],
     ["anywhere on the page", () => qsa("img")],
   ];
+
+  // Recovery has no "before" to protect it, so it only gets the two selectors
+  // that are scoped to an answer. Letting it fall through to "anywhere on the
+  // page" with nothing excluded is how you return the customer to herself.
+  const WAYS_RECOVER = WAYS.slice(0, 2);
 
   // Our own two images, which the page re-renders into the user's turn just
   // after sending, are the one thing that must not be mistaken for the answer.
@@ -107,7 +139,7 @@
       .slice(0, 8);
     const ways = WAYS.map(([name, f]) => {
       let n = 0;
-      try { n = f().filter((im) => im.src && !before.has(im.src)).length; } catch {}
+      try { n = f().filter((im) => im.src && !ours(im) && !before.has(im.src)).length; } catch {}
       return `${name}: ${n}`;
     });
     return [
@@ -118,8 +150,25 @@
   }
 
   window.__sareeHarvest = {
-    start(id) {
-      const notes = [`watching ${location.hostname} for a picture`];
+    // What this script has seen so far. The worker reads it from outside every
+    // few seconds, because a pushed message is a single point of failure: if
+    // this script dies - the tab reloads, the page navigates, the injected
+    // context goes - nothing ever reports and the job hangs until the screen
+    // gives up. Being readable from outside means the worker can notice.
+    state: { id: null, watching: false, done: false, payload: null },
+    peek() { return this.state; },
+
+    // recover = this script was re-injected after dying, so whatever is on the
+    // page now arrived while nobody was watching. There is no "before" to
+    // compare against, so take the newest large picture in the answer.
+    // sent: the data URLs we uploaded. The only certain test of "is this
+    // ours" is the bytes, because a re-hosted upload keeps its pixels and
+    // changes everything else.
+    start(id, recover = false, sent = []) {
+      this.state = { id, watching: true, done: false, payload: null };
+      const self = this;
+      const startedAt = Date.now();
+      const notes = [`watching ${location.hostname} for a picture (harvest build ${BUILD})`];
       // Filled once the echo has settled; until then nothing counts as new.
       let before = null;
 
@@ -127,14 +176,17 @@
       let stableSince = 0;
       let stableSrc = null;
 
-      const finish = async (found) => {
+      const finish = async (found, already) => {
         if (settled) return;
         settled = true;
         observer.disconnect();
         clearInterval(timer);
         const payload = found
-          ? { ok: true, id, url: found, dataUrl: await toDataUrl(found), notes }
+          ? { ok: true, id, url: found, dataUrl: already ?? (await toDataUrl(found)), notes }
           : { ok: false, id, notes };
+        // Recorded first, pushed second. The record is what the worker falls
+        // back to when the push does not arrive.
+        self.state = { id, watching: false, done: true, payload };
         chrome.runtime.sendMessage({ type: "tryon:harvested", ...payload });
       };
 
@@ -142,13 +194,17 @@
 
       const look = () => {
         if (!before) return;            // still letting our own echo land
+        // Too soon to be an answer: this is the window in which the page
+        // re-hosts what we uploaded.
+        if (!recover && Date.now() - startedAt < QUIET_FOR) return;
         let fresh = [];
-        for (const [name, find] of WAYS) {
+        for (const [name, find] of (recover ? WAYS_RECOVER : WAYS)) {
           let got = [];
           try { got = find(); } catch { continue; }
           fresh = got.filter(
             (im) =>
               im.src &&
+              !ours(im) &&            // never the customer's own photograph
               !before.has(im.src) &&
               im.complete &&
               bigEnough(im)
@@ -168,21 +224,40 @@
         }
         if (Date.now() - stableSince >= STABLE_FOR) {
           const url = widestOf(best);
-          notes.push(
-            `took a ${best.naturalWidth}x${best.naturalHeight} image from ${foundBy}` +
-              (url !== best.src ? " (the widest in its srcset)" : "")
-          );
-          finish(url);
+          // Last gate, and the only certain one: fetch it and see whether it
+          // is byte for byte something we sent. A re-hosted upload survives
+          // every other test because only its address changed.
+          toDataUrl(url).then((got) => {
+            if (got && sent.some((our) => our && got === our)) {
+              notes.push("that was one of ours, re-hosted - still watching");
+              before.add(best.src);          // never offer it again
+              stableSrc = null;
+              return;
+            }
+            notes.push(
+              `took a ${best.naturalWidth}x${best.naturalHeight} image from ${foundBy}` +
+                (url !== best.src ? " (the widest in its srcset)" : "")
+            );
+            finish(url, got);
+          });
         }
       };
 
-      // Snapshot after the settle, so the question's images - ours - are all
-      // inside it and only the answer can look new.
-      setTimeout(() => {
-        before = new Set(qsa("img").map((im) => im.src));
-        notes.push(`${before.size} images were already on the page`);
-        look();
-      }, SETTLE_FIRST);
+      if (recover) {
+        // Nothing counts as already-there: whatever is on the page is all we
+        // have, and the answer is the last large picture in it.
+        before = new Set();
+        notes.push("picked up again after the watcher was lost");
+        setTimeout(look, 400);
+      } else {
+        // Snapshot after the settle, so the question's images - ours - are all
+        // inside it and only the answer can look new.
+        setTimeout(() => {
+          before = new Set(qsa("img").map((im) => im.src));
+          notes.push(`${before.size} images were already on the page`);
+          look();
+        }, SETTLE_FIRST);
+      }
 
       const observer = new MutationObserver(look);
       observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });

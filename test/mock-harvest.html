@@ -19,6 +19,22 @@
                       must not be mistaken for the answer
     ?srcset=1         the page renders a small copy and names a bigger one in
                       srcset, which is what must actually be taken
+    ?mine=1           the page offers one of OUR OWN uploads in the answer's
+                      own place, at a new URL, long after the quiet period.
+                      Every positional rule says take it; only comparing the
+                      bytes says do not. This is the last line of defence.
+    ?rehost=1         the page re-hosts OUR uploads after watching began, so
+                      the customer's own photograph gets a brand new URL and
+                      looks like a fresh image. It must never be returned as
+                      the answer - this is the one that shipped broken, and it
+                      showed the customer a picture of herself.
+    ?rehost=noanswer  the same, with no answer ever arriving: it must give up
+                      rather than hand back the re-hosted photograph
+    ?recover=1        the picture is ALREADY on the page when watching starts,
+                      because the watcher died and was put back. There is no
+                      "before" to compare against, so it must take what is
+                      there - this is the path that rescues a job whose tab
+                      reloaded mid-generation
 -->
 <style>body{font:13px/1.6 ui-monospace,Menlo,monospace;background:#14181a;color:#e8edef;padding:16px}
 img{max-width:90px}.pass{color:#7fb98a}.fail{color:#c4564a}#log{white-space:pre-wrap}</style>
@@ -51,6 +67,8 @@ const PERSON = png(1024, 1365, "#c79a7a");     // what we uploaded
 const SAREE  = png(1024, 1536, "#d08a35");     // what we uploaded
 const RESULT = png(1024, 1536, "#2d6a4f");     // what came back
 const RESULT_SMALL = png(512, 768, "#2d6a4f"); // the copy a page may render
+// The same upload at a different URL, which is what re-hosting produces.
+const PERSON_REHOSTED = png(1024, 1365, "#c79a7b");
 
 const params = new URLSearchParams(location.search);
 const where = params.get("where") ?? "assistant";
@@ -77,7 +95,7 @@ async function userTurn() {
 }
 
 // Harness timings: seconds, not minutes.
-window.__sareeHarvestConfig = { settleFirst: 400, stableFor: 300, giveUpAfter: 6000 };
+window.__sareeHarvestConfig = { settleFirst: 400, stableFor: 300, giveUpAfter: 7000, quietFor: 1200 };
 
 // Capture what harvest.js reports instead of messaging a service worker.
 let reported = null;
@@ -107,6 +125,12 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
     container.appendChild(img);
     return img;
   }
+  // The same picture at a different address, which is exactly what re-hosting
+  // produces: identical bytes, nothing else in common. A data URL cannot
+  // simulate it - the URL IS the bytes - so the fixture has to make a blob.
+  const reHosted = async (dataUrl) =>
+    URL.createObjectURL(await (await fetch(dataUrl)).blob());
+
   const box = (html) => {
     const t = document.createElement("div");
     t.innerHTML = html;
@@ -118,16 +142,53 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
   };
 
   await window.__fixtureReady;
-  window.__sareeHarvest.start("test-job");
+
+  // What the worker hands over: the two we uploaded, so they can be recognised
+  // again however the page re-serves them.
+  const MINE = [PERSON, SAREE];
+
+  if (params.get("recover")) {
+    // The answer landed while nobody was watching. Put it on the page FIRST,
+    // then start in recovery mode, which is what the worker does when it finds
+    // the injected script gone.
+    await place(box('<div data-message-author-role="assistant"></div>'), RESULT);
+    window.__sareeHarvest.start("test-job", true, MINE);
+  } else {
+    window.__sareeHarvest.start("test-job", false, MINE);
+  }
 
   if (lateEcho) {
     await sleep(120);
     await userTurn();
   }
 
+  if (params.get("rehost")) {
+    // Well after the snapshot, so these URLs are genuinely new to the watcher.
+    await sleep(700);
+    const mine = page.querySelectorAll('[data-message-author-role="user"] img');
+    const swapped = new Image();
+    swapped.src = PERSON_REHOSTED;
+    try { await swapped.decode(); } catch {}
+    mine[0].src = PERSON_REHOSTED;
+  }
+
   // The answer arrives well after watching began, as a real one does.
-  await sleep(900);
-  if (params.get("srcset")) {
+  if (!params.get("recover")) await sleep(900);
+  if (params.get("mine")) {
+    // Timed so the byte test is the thing that has to work. Placed AFTER the
+    // quiet period, left alone long enough to stabilise, and the only
+    // candidate on the page - so every rule about where and when it is says
+    // "this is the answer", and only its bytes say otherwise.
+    await sleep(1500);
+    await place(box('<div data-message-author-role="assistant"></div>'), await reHosted(PERSON));
+    await sleep(1200);
+    // Only then does the real one arrive.
+    await place(box('<div data-message-author-role="assistant"></div>'), RESULT);
+  } else if (params.get("rehost") === "noanswer") {
+    // nothing ever arrives: the point is that it must NOT take ours
+  } else if (params.get("recover")) {
+    // already placed above
+  } else if (params.get("srcset")) {
     // Rendered small, with the full size named in srcset - the common case.
     await place(box('<div data-message-author-role="assistant"></div>'),
                 RESULT_SMALL, `${RESULT_SMALL} 512w, ${RESULT} 1024w`);
@@ -140,7 +201,38 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
   for (let i = 0; i < 150 && !reported; i++) await sleep(100);
 
   const notes = (reported?.notes ?? []).join(" | ");
-  const checks = params.get("srcset")
+  // peek() is how the worker reads this script from outside, which is the
+  // whole reason a job no longer hangs when the pushed message is lost.
+  const seen = window.__sareeHarvest.peek();
+
+  const checks = params.get("mine")
+    ? [
+        ["it did not take our own upload", reported?.url !== PERSON],
+        ["it took the generated one",      reported?.url === RESULT],
+        ["it said why it skipped ours",    notes.includes("one of ours")],
+      ]
+    : params.get("rehost") === "noanswer"
+    ? [
+        ["it gave up rather than taking ours", reported?.ok === false],
+        ["it did not return the customer",     reported?.url !== PERSON_REHOSTED],
+        ["nor the original upload",            reported?.url !== PERSON],
+      ]
+    : params.get("rehost")
+    ? [
+        ["it found a picture",                 reported?.ok === true],
+        ["it took the generated one",          reported?.url === RESULT],
+        ["NOT the re-hosted customer photo",   reported?.url !== PERSON_REHOSTED],
+        ["nor the saree we uploaded",          reported?.url !== SAREE],
+      ]
+    : params.get("recover")
+    ? [
+        ["it finds a picture already on the page", reported?.ok === true],
+        ["and it is the right one",                reported?.url === RESULT],
+        ["it says it was picked up again",         notes.includes("picked up again")],
+        ["peek() reports it finished",             seen?.done === true],
+        ["peek() carries the result",              seen?.payload?.url === RESULT],
+      ]
+    : params.get("srcset")
     ? [
         ["it found a picture",            reported?.ok === true],
         ["it took the WIDEST in srcset",  reported?.url === RESULT],
@@ -161,6 +253,8 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
         ["not the saree we uploaded",            reported?.url !== SAREE],
         ["it said where it found it",            /from the|from a/.test(notes)],
         ["it read the bytes back",               typeof reported?.dataUrl === "string"],
+        ["peek() reports it finished",           seen?.done === true],
+        ["peek() carries the same result",       seen?.payload?.url === reported?.url],
       ];
 
   const bad = checks.filter(([, p]) => !p);
