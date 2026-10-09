@@ -23,7 +23,7 @@
   // Printed in the notes so the ? button says which code actually ran. An
   // injected file is only re-read when the extension is reloaded, and "did it
   // reload?" has cost more time here than any bug.
-  const BUILD = 4;
+  const BUILD = 7;
 
   // Nothing is accepted for this long after sending. The page re-hosts our own
   // uploads within a few seconds of the send - new URL, same picture - and a
@@ -113,21 +113,71 @@
 
   // Reading the bytes is worth a try, because a data URL can be saved and a
   // CDN link cannot - but the link alone is enough to put it on screen, so a
-  // refusal here is not a failure.
-  async function toDataUrl(url) {
+  // refusal here is not a failure. The blob comes back too, because the
+  // fingerprint below needs the pixels and fetching twice would be wasteful.
+  async function fetchPicture(url) {
     try {
       const blob = await (await fetch(url, { credentials: "include" })).blob();
-      return await new Promise((ok, no) => {
+      const dataUrl = await new Promise((ok, no) => {
         const r = new FileReader();
         r.onload = () => ok(r.result);
         r.onerror = () => no(r.error);
         r.readAsDataURL(blob);
       });
+      return { blob, dataUrl };
+    } catch {
+      return { blob: null, dataUrl: null };
+    }
+  }
+  const toDataUrl = async (url) => (await fetchPicture(url)).dataUrl;
+
+  // IS THIS THE SAME PICTURE?
+  //
+  // An 8x8 average hash was the wrong instrument, and it broke the thing it was
+  // meant to protect. Every picture here is one person, centred, full length,
+  // on a plain pale background - the garment's catalogue shot and the generated
+  // try-on alike. At 64 bits of coarse brightness those two ARE the same image,
+  // so the gate started refusing the real answer and nothing came back at all.
+  //
+  // Compare at a resolution that can tell two people apart instead: 32x32 grey,
+  // and the mean absolute difference between them. A re-encoded copy of the
+  // same picture lands a point or two away; two different photographs of two
+  // different people, however alike the staging, land far above that.
+  //
+  // Drawing is safe because we fetched the bytes ourselves - a blob is not
+  // cross-origin, so the canvas is not tainted and the pixels can be read.
+  const FP = 32;
+
+  async function fingerprint(src) {
+    try {
+      const bmp = await createImageBitmap(
+        typeof src === "string" ? await (await fetch(src)).blob() : src
+      );
+      const c = new OffscreenCanvas(FP, FP);
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0, FP, FP);
+      bmp.close();
+      const d = ctx.getImageData(0, 0, FP, FP).data;
+      const out = new Float32Array(FP * FP);
+      for (let i = 0; i < FP * FP; i++) {
+        out[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+      }
+      return out;
     } catch {
       return null;
     }
   }
 
+  // 0 is identical; 255 would be black against white. Written into the notes
+  // either way, so the number can be read off a screenshot and this threshold
+  // settled against real pictures rather than guessed at a third time.
+  const differ = (a, b) => {
+    if (!a || !b || a.length !== b.length) return 999;
+    let sum = 0;
+    for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+    return sum / a.length;
+  };
+  const SAME_PICTURE = 8;
   // What the page is showing, for when none of it is what we wanted. Without
   // this a failure says "nothing arrived", which is true and useless.
   function census(before) {
@@ -168,6 +218,10 @@
       this.state = { id, watching: true, done: false, payload: null };
       const self = this;
       const startedAt = Date.now();
+      // What our two uploads look like, computed once while the page works.
+      const mine = Promise.all(sent.filter(Boolean).map(fingerprint)).then((xs) =>
+        xs.filter(Boolean)
+      );
       const notes = [`watching ${location.hostname} for a picture (harvest build ${BUILD})`];
       // Filled once the echo has settled; until then nothing counts as new.
       let before = null;
@@ -191,6 +245,7 @@
       };
 
       let foundBy = null;
+      let judging = null;     // the src currently being fetched and compared
 
       const look = () => {
         if (!before) return;            // still letting our own echo land
@@ -223,23 +278,37 @@
           return;
         }
         if (Date.now() - stableSince >= STABLE_FOR) {
+          if (judging === best.src) return;   // already being checked
+          judging = best.src;
           const url = widestOf(best);
           // Last gate, and the only certain one: fetch it and see whether it
           // is byte for byte something we sent. A re-hosted upload survives
           // every other test because only its address changed.
-          toDataUrl(url).then((got) => {
-            if (got && sent.some((our) => our && got === our)) {
-              notes.push("that was one of ours, re-hosted - still watching");
+          (async () => {
+            const { blob, dataUrl: got } = await fetchPicture(url);
+            const byteMatch = got && sent.some((our) => our && got === our);
+            const fp = blob ? await fingerprint(blob) : null;
+            const gaps = fp ? (await mine).map((m) => differ(fp, m)) : [];
+            const nearest = gaps.length ? Math.min(...gaps) : null;
+            const looksMatch = nearest !== null && nearest <= SAME_PICTURE;
+            if (byteMatch || looksMatch) {
+              notes.push(
+                byteMatch
+                  ? "that was one of ours, served back unchanged - still watching"
+                  : `that was one of ours, re-encoded (differs by ${nearest.toFixed(1)}) - still watching`
+              );
               before.add(best.src);          // never offer it again
               stableSrc = null;
+              judging = null;
               return;
             }
             notes.push(
               `took a ${best.naturalWidth}x${best.naturalHeight} image from ${foundBy}` +
-                (url !== best.src ? " (the widest in its srcset)" : "")
+                (url !== best.src ? " (the widest in its srcset)" : "") +
+                (nearest !== null ? `, ${nearest.toFixed(1)} from the nearest of ours` : "")
             );
             finish(url, got);
-          });
+          })();
         }
       };
 

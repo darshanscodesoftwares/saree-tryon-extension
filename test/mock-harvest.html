@@ -19,6 +19,17 @@
                       must not be mistaken for the answer
     ?srcset=1         the page renders a small copy and names a bigger one in
                       srcset, which is what must actually be taken
+    ?lookalike=1      the answer is a DIFFERENT person in the SAME staging as
+                      the garment we uploaded - one figure, centred, full
+                      length, plain pale ground. That is every picture in this
+                      app, and a coarse hash calls them identical: it is why
+                      build 5 began refusing the real answer and nothing came
+                      back at all. It must be taken.
+    ?mine=reencoded   the page offers our own upload RE-ENCODED: same picture,
+                      different bytes. Comparing bytes cannot see it, and this
+                      is the one that shipped broken - it came back as the
+                      customer's own photograph whenever the generator's tab
+                      happened to be in the foreground.
     ?mine=1           the page offers one of OUR OWN uploads in the answer's
                       own place, at a new URL, long after the quiet period.
                       Every positional rule says take it; only comparing the
@@ -56,19 +67,54 @@ addEventListener("unhandledrejection", (e) => fatal(e.reason));
 
 <script>
 // Pictures of a known size, so "big enough" and "which one" are decidable.
-function png(w, h, colour) {
+// Pictures with STRUCTURE, not flat fills. A solid rectangle has no signature
+// to speak of - every flat fill looks like every other - so a fixture made of
+// them cannot test whether two pictures are the same picture.
+function png(w, h, colour, seed = 0) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const x = c.getContext("2d");
   x.fillStyle = colour; x.fillRect(0, 0, w, h);
-  return c.toDataURL("image/png");
+  x.fillStyle = "rgba(255,255,255,.9)";
+  for (let i = 0; i < 4; i++) {
+    x.beginPath();
+    x.arc(w * (0.2 + 0.2 * ((i + seed) % 4)), h * (0.18 + 0.2 * ((i * 3 + seed) % 4)),
+          Math.min(w, h) * 0.1, 0, 7);
+    x.fill();
+  }
+  x.fillStyle = "rgba(0,0,0,.75)";
+  x.fillRect(0, h * (0.5 + 0.08 * (seed % 3)), w, h * 0.14);
+  return c.toDataURL("image/jpeg", 0.92);
 }
-const PERSON = png(1024, 1365, "#c79a7a");     // what we uploaded
-const SAREE  = png(1024, 1536, "#d08a35");     // what we uploaded
-const RESULT = png(1024, 1536, "#2d6a4f");     // what came back
-const RESULT_SMALL = png(512, 768, "#2d6a4f"); // the copy a page may render
+const PERSON = png(1024, 1365, "#c79a7a", 1);     // what we uploaded
+const SAREE  = png(1024, 1536, "#d08a35", 2);     // what we uploaded
+const RESULT = png(1024, 1536, "#2d6a4f", 3);     // what came back
+const RESULT_SMALL = png(512, 768, "#2d6a4f", 3); // the copy a page may render
 // The same upload at a different URL, which is what re-hosting produces.
-const PERSON_REHOSTED = png(1024, 1365, "#c79a7b");
+const PERSON_REHOSTED = png(1024, 1365, "#c79a7b", 1);
+
+// One figure, centred, full length, on a plain pale ground - the staging every
+// picture in this app shares. Two of these are DIFFERENT pictures that a coarse
+// hash cannot tell apart, which is the whole point of the lookalike case.
+function figure(bg, skin, clothes, build) {
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 1536;
+  const x = c.getContext("2d");
+  x.fillStyle = bg; x.fillRect(0, 0, 1024, 1536);
+  const cx = 512, w = build;
+  x.fillStyle = skin;                                  // head
+  x.beginPath(); x.arc(cx, 300, 110, 0, 7); x.fill();
+  x.fillStyle = clothes;                               // torso
+  x.fillRect(cx - w, 420, w * 2, 520);
+  x.fillRect(cx - w * 1.5, 430, w * 0.5, 430);         // arms
+  x.fillRect(cx + w, 430, w * 0.5, 430);
+  x.fillStyle = "#23242a";                             // legs
+  x.fillRect(cx - w * 0.9, 940, w * 0.8, 500);
+  x.fillRect(cx + w * 0.1, 940, w * 0.8, 500);
+  return c.toDataURL("image/jpeg", 0.92);
+}
+const LOOKALIKE_GARMENT = figure("#f2f2f4", "#c79a7a", "#6b2737", 150);
+const LOOKALIKE_RESULT  = figure("#e6e7ea", "#8a6b4f", "#5d2a3a", 185);
 
 const params = new URLSearchParams(location.search);
 const where = params.get("where") ?? "assistant";
@@ -131,6 +177,19 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
   const reHosted = async (dataUrl) =>
     URL.createObjectURL(await (await fetch(dataUrl)).blob());
 
+  // The same picture through another encoder: different bytes, different
+  // size, same light in the same places. This is what a page does to an
+  // upload, and it is invisible to a byte comparison.
+  const reEncoded = async (dataUrl) => {
+    const bmp = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * 0.8);
+    c.height = Math.round(bmp.height * 0.8);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    return c.toDataURL("image/jpeg", 0.55);
+  };
+
   const box = (html) => {
     const t = document.createElement("div");
     t.innerHTML = html;
@@ -145,7 +204,7 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
 
   // What the worker hands over: the two we uploaded, so they can be recognised
   // again however the page re-serves them.
-  const MINE = [PERSON, SAREE];
+  const MINE = params.get("lookalike") ? [PERSON, LOOKALIKE_GARMENT] : [PERSON, SAREE];
 
   if (params.get("recover")) {
     // The answer landed while nobody was watching. Put it on the page FIRST,
@@ -174,13 +233,20 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
 
   // The answer arrives well after watching began, as a real one does.
   if (!params.get("recover")) await sleep(900);
-  if (params.get("mine")) {
+  if (params.get("lookalike")) {
+    // The staging is identical; the picture is not.
+    await sleep(1500);
+    await place(box('<div data-message-author-role="assistant"></div>'), LOOKALIKE_RESULT);
+  } else if (params.get("mine")) {
     // Timed so the byte test is the thing that has to work. Placed AFTER the
     // quiet period, left alone long enough to stabilise, and the only
     // candidate on the page - so every rule about where and when it is says
     // "this is the answer", and only its bytes say otherwise.
     await sleep(1500);
-    await place(box('<div data-message-author-role="assistant"></div>'), await reHosted(PERSON));
+    await place(
+      box('<div data-message-author-role="assistant"></div>'),
+      params.get("mine") === "reencoded" ? await reEncoded(PERSON) : await reHosted(PERSON)
+    );
     await sleep(1200);
     // Only then does the real one arrive.
     await place(box('<div data-message-author-role="assistant"></div>'), RESULT);
@@ -205,11 +271,21 @@ window.__fixtureReady = (async () => { if (!lateEcho) await userTurn(); })();
   // whole reason a job no longer hangs when the pushed message is lost.
   const seen = window.__sareeHarvest.peek();
 
-  const checks = params.get("mine")
+  const checks = params.get("lookalike")
+    ? [
+        ["a different person in the same staging is taken", reported?.ok === true],
+        ["and it is the generated one",                     reported?.url === LOOKALIKE_RESULT],
+        ["it was not mistaken for ours",                    !notes.includes("one of ours")],
+        ["and it reported how far apart they were",         /from the nearest of ours/.test(notes)],
+      ]
+    : params.get("mine")
     ? [
         ["it did not take our own upload", reported?.url !== PERSON],
         ["it took the generated one",      reported?.url === RESULT],
         ["it said why it skipped ours",    notes.includes("one of ours")],
+        ...(params.get("mine") === "reencoded"
+          ? [["it recognised the picture, not the bytes", notes.includes("re-encoded")]]
+          : []),
       ]
     : params.get("rehost") === "noanswer"
     ? [
