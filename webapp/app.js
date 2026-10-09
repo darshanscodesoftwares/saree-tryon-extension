@@ -24,7 +24,7 @@ const el = {
   chipGarment: $("chip-garment"), chipGarmentImg: $("chip-garment-img"),
   waitnote: $("waitnote"), waitsub: $("waitsub"), lottie: $("lottie"),
   pct: $("pct"), meter: $("meter"), meterfill: $("meterfill"),
-  result: $("result"), before: $("before"),
+  result: $("result"), before: $("before"), provenance: $("provenance"),
   compare: $("compare"), another: $("another"), restart: $("restart"),
   attract: $("attract"), begin: $("begin"),
   idlewarn: $("idlewarn"), idlecount: $("idlecount"), stay: $("stay"),
@@ -256,6 +256,7 @@ async function run() {
     el.result.src = image;
     el.before.src = person;
     lastDiagnostic = notes.join("\n");
+    el.provenance.textContent = notes.join("\n");
     stage("result");
   } catch (e) {
     stopMeter();
@@ -383,7 +384,7 @@ async function check() {
 }
 
 (async function boot() {
-  if (KIOSK) { el.attract.hidden = false; stage("attract"); }
+  if (KIOSK) { body.dataset.kiosk = "1"; el.attract.hidden = false; stage("attract"); }
   else { el.attract.hidden = true; stage("choose"); }
   await check();
   setInterval(check, 15000);
