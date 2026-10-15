@@ -379,15 +379,22 @@ string, so a headless run can read the result without a driver library.
 
 - `node test/prompts.mjs` and `node test/contrast.mjs`, both run by `npm test`,
   check things that are not behaviour: what the three prompts say, and whether
-  every colour pair the interface puts together clears WCAG AA. Neither needs a
+  every colour pair the interface puts together clears WCAG AA - including the
+  icon-only controls, where the glyph is the label and so is measured against
+  the button it sits in rather than the page behind it. Neither needs a
   browser.
 - `test/kiosk-shelf.html` drives the real kiosk page in an iframe against the
   real server: that a garment added in the panel reaches the screen, that the
   shelf is grouped, and that the tiles are buttons that report `aria-pressed`.
 - `test/result-dock.html` drives the same page at 360px, 390px and 1200px with
-  the result on screen. The dock holds four controls now that the picture can
-  be saved, and they fit on one line only if none of them wraps - so it
-  measures them rather than trusting the layout. It also catches the anchor the
+  the result on screen. Two things there break silently and look fine in a
+  screenshot taken at one width. The dock's controls fit on one line only if
+  none of them wraps. And Save is laid on the picture itself, pinned to a
+  wrapper that shrink-wraps it - `.shot img` is `width:auto`, so the figure is
+  usually wider than the image inside it, and anything pinned to the figure
+  drifts off the edge of the photograph the moment the height cap bites.
+  Removing that wrapper fails three checks. It also confirms the icon-only
+  buttons still have names a screen reader can read, and catches the anchor the
   Save button builds, to check that a file is handed over at all, that it comes
   from a `blob:` URL rather than the generator's link, and that the name keeps
   the real file type.

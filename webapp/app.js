@@ -304,6 +304,8 @@ function wipe() {
   delete el.chipGarment.dataset.filled;
   el.result.removeAttribute("src");
   el.before.removeAttribute("src");
+  // Otherwise the next customer's picture arrives already wearing a tick.
+  el.save.classList.remove("saved");
   body.classList.remove("comparing");
   renderGarments();
   refresh();
@@ -373,6 +375,8 @@ async function save() {
     a.remove();
     // Revoked late: Safari reads the URL after click() has already returned.
     setTimeout(() => URL.revokeObjectURL(href), 10000);
+    // The icon becomes a tick for a moment: a saved file is otherwise silent
+    // on iOS, which shows no download shelf, and the customer presses again.
     el.save.classList.add("saved");
     setTimeout(() => el.save.classList.remove("saved"), 2500);
   } catch {

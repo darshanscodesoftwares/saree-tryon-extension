@@ -4,17 +4,21 @@
 <meta charset="utf-8">
 <title>dock-start</title>
 <!--
-  The result dock held three controls, and its own stylesheet says they fit
-  only if none of them wraps. Save makes four. This checks that the fourth one
-  did not quietly push the row off the edge on a phone.
+  The result screen: three controls in the dock, and Save laid on the
+  photograph itself.
 
-  It drives the real kiosk page in an iframe at real phone widths, puts it in
-  the result stage, and measures the buttons that are actually on screen - so
-  the short-label breakpoint is exercised rather than assumed.
+  Two things here break silently and look fine in a screenshot taken at one
+  width. The dock's own stylesheet says its controls fit only if none of them
+  wraps. And Save is pinned to a wrapper that shrink-wraps the picture, because
+  .shot img is width:auto - the figure is usually WIDER than the image inside
+  it, so anything pinned to the figure floats off the edge of the photograph
+  the moment the height cap bites. Neither is visible without measuring.
 
-  Also checks the two rules Save is subject to: it is hidden on a kiosk, where
-  a saved file lands on the shop's own machine, and its tap target is big
-  enough to hit.
+  It drives the real kiosk page in an iframe at real widths, puts it in the
+  result stage with a real 2:3 picture, and measures what is on screen.
+
+  Also checks what icon-only buttons depend on: that each one still has a name
+  a screen reader can read, since the shape is the only label a customer gets.
 
   Same origin, so the iframe's DOM can be read. Needs `npm start`.
   Run in REAL time: it waits on layout and images, which are not timers.
@@ -31,28 +35,38 @@ const api = (p) => new URL(p, location.href).href;
 
 const frame = document.getElementById("kiosk");
 
-// A phone, a small phone, and a desktop. The 390 and 360 cases are the ones
-// that matter: below 460 the buttons swap to their short labels, and 360 is
-// about as narrow as a phone in use gets.
+// A 2:3 picture, the shape these generators return, big enough that the
+// height cap bites and the image ends up narrower than its column.
+const PICTURE = (() => {
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 1536;
+  const x = c.getContext("2d");
+  x.fillStyle = "#cfd3d8"; x.fillRect(0, 0, 1024, 1536);
+  x.fillStyle = "#3a3f46"; x.fillRect(300, 400, 420, 900);
+  return c.toDataURL("image/png");
+})();
+
+// A phone, a small phone, and a desktop. Below 460 the labels shorten, and
+// 360 is about as narrow as a phone in use gets.
 const WIDTHS = [[360, "a small phone"], [390, "a phone"], [1200, "a desktop"]];
 
 async function openAt(width, kiosk) {
   frame.style.width = `${width}px`;
-  frame.style.height = "760px";
+  frame.style.height = "780px";
   await new Promise((done) => {
     frame.onload = done;
     frame.src = api("../webapp/") + "?w=" + width + (kiosk ? "&kiosk=1" : "");
   });
   const d = frame.contentDocument;
-  // Wait for boot(), not for the markup: #save is in the static HTML, so its
-  // presence says nothing about whether the page has started. data-stage is
-  // the first thing boot() sets.
+  // Wait for boot(), not for the markup: the buttons are in the static HTML,
+  // so their presence says nothing about whether the page has started.
   for (let i = 0; i < 100; i++) {
     if (d.body.dataset.stage) break;
     await sleep(50);
   }
-  // Straight to the end of the journey. The dock is what is being measured,
-  // not how a customer got here.
+  const img = d.getElementById("result");
+  img.src = PICTURE;
+  await img.decode().catch(() => {});
   d.body.dataset.stage = "result";
   await new Promise((r) => frame.contentWindow.requestAnimationFrame(
     () => frame.contentWindow.requestAnimationFrame(r)));
@@ -64,27 +78,48 @@ const lines = [];
 for (const [w, what] of WIDTHS) {
   const d = await openAt(w, false);
   const row = d.getElementById("resultacts");
-  const save = d.getElementById("save");
   const btns = [...row.querySelectorAll(".btn")].filter((b) => b.offsetParent !== null);
   const boxes = btns.map((b) => b.getBoundingClientRect());
-  const rowBox = row.getBoundingClientRect();
 
   // One line means every button shares a top edge. A wrapped row has one
   // sitting a whole button-height lower.
   const tops = boxes.map((b) => Math.round(b.top));
-  const oneLine = Math.max(...tops) - Math.min(...tops) < 4;
-  // And nothing hangs off either edge of the window.
-  const inside = boxes.every((b) => b.left >= -1 && b.right <= w + 1);
-  const noScroll = d.documentElement.scrollWidth <= w + 1;
+  ok(`${what} (${w}px): the dock stays on one line`, Math.max(...tops) - Math.min(...tops) < 4);
+  ok(`${what} (${w}px): no button hangs off the edge`,
+     boxes.every((b) => b.left >= -1 && b.right <= w + 1));
+  ok(`${what} (${w}px): the page does not scroll sideways`,
+     d.documentElement.scrollWidth <= w + 1);
 
-  ok(`${what} (${w}px): the dock stays on one line`, oneLine);
-  ok(`${what} (${w}px): no button hangs off the edge`, inside);
-  ok(`${what} (${w}px): the page does not scroll sideways`, noScroll);
-  ok(`${what} (${w}px): Save is there and tappable`,
-     save.offsetParent !== null && save.getBoundingClientRect().height >= 40);
+  // Save is on the picture. This is the check that matters: the picture, not
+  // the figure that holds it.
+  const img = d.getElementById("result").getBoundingClientRect();
+  const save = d.getElementById("save").getBoundingClientRect();
+  ok(`${what} (${w}px): Save sits on the picture, not beside it`,
+     save.left >= img.left - 1 && save.right <= img.right + 1 &&
+     save.top >= img.top - 1 && save.bottom <= img.bottom + 1);
+  ok(`${what} (${w}px): Save is big enough to hit`, save.height >= 40 && save.width >= 40);
 
-  lines.push(`${String(w).padStart(4)}px over by ${Math.round(d.documentElement.scrollWidth - w)}px | ` +
-             btns.map((b, i) => `${b.textContent.trim().replace(/\s+/g, " ")}=${Math.round(boxes[i].width)}`).join(" "));
+  lines.push(`${String(w).padStart(4)}px  dock ${btns.length} over by ` +
+    `${Math.round(d.documentElement.scrollWidth - w)}px | ` +
+    btns.map((b, i) => `${(b.textContent.trim() || b.getAttribute("aria-label").split(" ")[0])}=${Math.round(boxes[i].width)}`).join(" ") +
+    ` | picture ${Math.round(img.width)}x${Math.round(img.height)}, Save inset ` +
+    `${Math.round(img.right - save.right)}/${Math.round(save.top - img.top)}`);
+}
+
+// An icon with no name is a button nobody can describe. The shape is the only
+// label a sighted customer gets, and no label at all for anyone else.
+{
+  const d = await openAt(390, false);
+  for (const id of ["compare", "save", "restart"]) {
+    const b = d.getElementById(id);
+    const named = (b.getAttribute("aria-label") ?? "").trim().length > 3 ||
+                  (b.textContent ?? "").trim().length > 3;
+    ok(`#${id} has a name a screen reader can read`, named);
+  }
+  ok("Try another keeps its words", d.getElementById("another").textContent.trim() === "Try another");
+  ok("Done is the one red control",
+     frame.contentWindow.getComputedStyle(d.getElementById("restart")).color !==
+     frame.contentWindow.getComputedStyle(d.getElementById("compare")).color);
 }
 
 // On the kiosk the file would land on the shop's own machine, where no
@@ -92,7 +127,7 @@ for (const [w, what] of WIDTHS) {
 {
   const d = await openAt(1080, true);
   const save = d.getElementById("save");
-  ok("the kiosk does not offer Save", d.body.dataset.kiosk ? save.offsetParent === null : true);
+  ok("the kiosk does not offer Save", save.offsetParent === null);
   lines.push(`kiosk   data-kiosk=${d.body.dataset.kiosk ?? "(unset)"}, ` +
              `Save ${save.offsetParent === null ? "hidden" : "VISIBLE"}`);
 }
@@ -104,8 +139,6 @@ for (const [w, what] of WIDTHS) {
 {
   const d = await openAt(390, false);
   const w = frame.contentWindow;
-  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-  d.getElementById("result").src = PNG;
   let grabbed = null;
   const real = w.HTMLAnchorElement.prototype.click;
   w.HTMLAnchorElement.prototype.click = function () {
@@ -120,7 +153,7 @@ for (const [w, what] of WIDTHS) {
      Boolean(grabbed?.href.startsWith("blob:")));
   ok("the filename says what it is and keeps the real type",
      /^tryon-[a-z0-9-]*-\d{8}\d{4}\.png$/.test(grabbed?.name ?? ""));
-  ok("and the button says it worked", d.getElementById("save").classList.contains("saved"));
+  ok("and the icon turns into a tick", d.getElementById("save").classList.contains("saved"));
   lines.push(`save    ${grabbed ? `${grabbed.name}  <- ${grabbed.href.slice(0, 12)}...` : "NOTHING HANDED OVER"}`);
 }
 

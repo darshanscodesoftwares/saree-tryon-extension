@@ -268,6 +268,11 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 }
 /* The moment in a saree shop is the unrolling, so the result is not faded in -
    it is drawn down like cloth off a bolt. */
+/* inline-block so it shrinks to the picture rather than the figure, and sits
+   where the bare img used to - which keeps the caption aligned to the
+   picture's left edge when the height cap makes it narrower than the column. */
+.shot-wrap { position: relative; display: inline-block; max-width: 100%; vertical-align: top; }
+.shot-wrap img { display: block; }
 .shot.after img { animation: unveil .76s cubic-bezier(.65,0,.35,1) both; }
 @keyframes unveil {
   from { clip-path: inset(0 0 100% 0 round var(--r)); }
@@ -280,7 +285,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 body[data-kiosk] .provenance { display: none; }
 .shot figcaption { margin-top: 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
 .shot.before { display: none; }          /* desktop brings it back, side by side */
-body.comparing .shot.after img { display: none; }
+body.comparing .shot.after .shot-wrap { display: none; }
 body.comparing .shot.before { display: block; }
 
 /* =============================================================== dock ===*/
@@ -325,6 +330,35 @@ body.comparing .shot.before { display: block; }
 .btn:disabled { background: var(--surface); border-color: var(--hair); color: var(--muted); cursor: default; transform: none; }
 .btn .short { display: none; }
 
+/* A button that is only an icon. Square, so four of them read as a set, and
+   always carrying an aria-label: the shape is the only label a customer gets. */
+.iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--tap); height: var(--tap); flex: none; padding: 0; gap: 0;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); cursor: pointer;
+}
+.iconbtn svg { width: 21px; height: 21px; display: block; }
+/* Done is destructive - it wipes the customer's photograph - so it is the one
+   control on the screen that is red. */
+.iconbtn.danger { color: var(--bad); border-color: var(--bad); }
+
+/* Save sits on the picture, where what is being saved is obvious. Laid on a
+   photograph it cannot borrow the page's contrast, so it brings its own: a
+   near-solid pill, which is what the icon is actually measured against. The
+   ring and the shadow are what separate the pill from whatever is behind it. */
+.onshot {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  background: rgba(255, 255, 255, .94);
+  border-color: rgba(0, 0, 0, .22);
+  box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.22);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.onshot .i-done { display: none; }
+.onshot.saved { color: var(--ok); }
+.onshot.saved .i-save { display: none; }
+.onshot.saved .i-done { display: block; }
+
 /* =============================================================== wait ===
    The whole screen, because there is nothing else to do while it runs and a
    customer who wanders off mid-generation should not leave the shelf open
@@ -358,14 +392,10 @@ body[data-stage="working"] #wait { display: grid; }
 .waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
 .waitsub { font-size: clamp(12px, 1.4vw, 15px); color: var(--muted); }
 #resultacts { display: none; flex: 1 1 auto; gap: var(--s-2); align-items: center; }
-/* Four controls in a phone dock: they fit only if none of them wraps, which is
-   why Save carries a short label like the others. */
-#resultacts .btn { padding-inline: var(--s-3); font-size: 14px; }
-/* Confirmation, because a saved file is otherwise silent on a phone - iOS
-   shows no download shelf, and the customer is left pressing the button again. */
-.btn .done { display: none; }
-#save.saved .long, #save.saved .short { display: none; }
-#save.saved .done { display: inline; }
+/* Two icons and one worded button. Peek and Done carry no text because their
+   meaning is a shape; Try another keeps its words because it is the one thing
+   a customer is being invited to do. */
+#resultacts .btn { padding-inline: var(--s-3); font-size: 15px; }
 /* The kiosk is the shop's own machine: a file saved there lands somewhere no
    customer can reach. */
 body[data-kiosk] #save { display: none; }
@@ -481,10 +511,9 @@ body[data-stage="result"]  #resultacts { display: flex; }
 /* A dock this narrow needs the shorter label. */
 @media (max-width: 460px) {
   .btn .long { display: none; } .btn .short { display: inline; }
-  /* Four buttons at 360px only fit if they give up some of their padding too.
-     Measured: short labels alone still ran 6px over on a small phone. */
-  #resultacts { gap: var(--s-1); }
-  #resultacts .btn { padding-inline: var(--s-2); }
+  /* Two icons and one label leave room to spare now, but the gap stays tight:
+     the icons read as a set rather than as three unrelated controls. */
+  #resultacts { gap: var(--s-2); }
   /* The title truncated to "See you..." tells nobody anything, and on a phone
      the customer already knows what they opened. The status earns the room. */
   #bar h1 { display: none; }

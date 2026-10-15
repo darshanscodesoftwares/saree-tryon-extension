@@ -74,7 +74,20 @@
     <h2 class="step-h">Here you are</h2>
     <div class="results">
       <figure class="shot after">
-        <img id="result" alt="You, wearing the garment you chose">
+        <!-- The wrapper shrink-wraps the picture. .shot img is width:auto, so
+             the figure is usually wider than the image it holds; pinning Save
+             to the figure would float it off the edge of the photograph. -->
+        <span class="shot-wrap">
+          <img id="result" alt="You, wearing the garment you chose">
+          <button id="save" class="iconbtn onshot" aria-label="Save this photo to your device">
+            <svg class="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M4.5 17.5V19a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-1.5"/>
+            </svg>
+            <svg class="i-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m5 12.5 4.5 4.5L19 7.5"/>
+            </svg>
+          </button>
+        </span>
         <figcaption>Wearing it</figcaption>
         <p id="provenance" class="provenance"></p>
       </figure>
@@ -104,16 +117,18 @@
   </button>
 
   <div id="resultacts">
-    <button id="compare" class="btn">
-      <span class="long">Hold to compare</span><span class="short">Compare</span>
+    <button id="compare" class="btn iconbtn" aria-label="Hold to see your original photograph">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z"/>
+        <circle cx="12" cy="12" r="2.9"/>
+      </svg>
     </button>
-    <button id="save" class="btn">
-      <span class="long">Save photo</span><span class="short">Save</span><span class="done">Saved</span>
+    <button id="another" class="btn primary grow">Try another</button>
+    <button id="restart" class="btn iconbtn danger" aria-label="Done - clear this screen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true">
+        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>
+      </svg>
     </button>
-    <button id="another" class="btn primary grow">
-      <span class="long">Try another</span><span class="short">Another</span>
-    </button>
-    <button id="restart" class="btn ghost">Done</button>
   </div>
 </div>
 

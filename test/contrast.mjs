@@ -52,6 +52,16 @@ const checks = [
   ["focus ring on page",           C.accent, C.bg, 3],
   ["focus ring on a card",         C.accent, C.surface, 3],
   ["primary button against page",  C.accent, C.bg, 3],
+
+  // Icon-only controls. The glyph IS the label, so it is non-text content at
+  // 3:1 against the button it sits in - not against the page behind it.
+  ["the peek icon in its button",  C.text, C.surface, 3],
+  ["the close icon in its button", C.bad, C.surface, 3],
+  ["the close icon's own ring",    C.bad, C.bg, 3],
+  // Save is laid on a photograph, so it cannot borrow the page's contrast. It
+  // brings a near-solid white pill of its own, and the icon is measured
+  // against THAT - the same construction as the selection ring's inset gap.
+  ["the save icon on its pill",    C.text, "#ffffff", 3],
 ];
 
 // The construction that makes selection legible: the ring never touches the
