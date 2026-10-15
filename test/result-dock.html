@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dock-start</title>
+<!--
+  The result dock held three controls, and its own stylesheet says they fit
+  only if none of them wraps. Save makes four. This checks that the fourth one
+  did not quietly push the row off the edge on a phone.
+
+  It drives the real kiosk page in an iframe at real phone widths, puts it in
+  the result stage, and measures the buttons that are actually on screen - so
+  the short-label breakpoint is exercised rather than assumed.
+
+  Also checks the two rules Save is subject to: it is hidden on a kiosk, where
+  a saved file lands on the shop's own machine, and its tap target is big
+  enough to hit.
+
+  Same origin, so the iframe's DOM can be read. Needs `npm start`.
+  Run in REAL time: it waits on layout and images, which are not timers.
+-->
+</head>
+<body>
+<iframe id="kiosk" src="about:blank" style="border:1px solid #333"></iframe>
+<pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+<script type="module">
+const checks = [];
+const ok = (n, p) => checks.push([n, p]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const api = (p) => new URL(p, location.href).href;
+
+const frame = document.getElementById("kiosk");
+
+// A phone, a small phone, and a desktop. The 390 and 360 cases are the ones
+// that matter: below 460 the buttons swap to their short labels, and 360 is
+// about as narrow as a phone in use gets.
+const WIDTHS = [[360, "a small phone"], [390, "a phone"], [1200, "a desktop"]];
+
+async function openAt(width, kiosk) {
+  frame.style.width = `${width}px`;
+  frame.style.height = "760px";
+  await new Promise((done) => {
+    frame.onload = done;
+    frame.src = api("../webapp/") + "?w=" + width + (kiosk ? "&kiosk=1" : "");
+  });
+  const d = frame.contentDocument;
+  // Wait for boot(), not for the markup: #save is in the static HTML, so its
+  // presence says nothing about whether the page has started. data-stage is
+  // the first thing boot() sets.
+  for (let i = 0; i < 100; i++) {
+    if (d.body.dataset.stage) break;
+    await sleep(50);
+  }
+  // Straight to the end of the journey. The dock is what is being measured,
+  // not how a customer got here.
+  d.body.dataset.stage = "result";
+  await new Promise((r) => frame.contentWindow.requestAnimationFrame(
+    () => frame.contentWindow.requestAnimationFrame(r)));
+  return d;
+}
+
+const lines = [];
+
+for (const [w, what] of WIDTHS) {
+  const d = await openAt(w, false);
+  const row = d.getElementById("resultacts");
+  const save = d.getElementById("save");
+  const btns = [...row.querySelectorAll(".btn")].filter((b) => b.offsetParent !== null);
+  const boxes = btns.map((b) => b.getBoundingClientRect());
+  const rowBox = row.getBoundingClientRect();
+
+  // One line means every button shares a top edge. A wrapped row has one
+  // sitting a whole button-height lower.
+  const tops = boxes.map((b) => Math.round(b.top));
+  const oneLine = Math.max(...tops) - Math.min(...tops) < 4;
+  // And nothing hangs off either edge of the window.
+  const inside = boxes.every((b) => b.left >= -1 && b.right <= w + 1);
+  const noScroll = d.documentElement.scrollWidth <= w + 1;
+
+  ok(`${what} (${w}px): the dock stays on one line`, oneLine);
+  ok(`${what} (${w}px): no button hangs off the edge`, inside);
+  ok(`${what} (${w}px): the page does not scroll sideways`, noScroll);
+  ok(`${what} (${w}px): Save is there and tappable`,
+     save.offsetParent !== null && save.getBoundingClientRect().height >= 40);
+
+  lines.push(`${String(w).padStart(4)}px over by ${Math.round(d.documentElement.scrollWidth - w)}px | ` +
+             btns.map((b, i) => `${b.textContent.trim().replace(/\s+/g, " ")}=${Math.round(boxes[i].width)}`).join(" "));
+}
+
+// On the kiosk the file would land on the shop's own machine, where no
+// customer can reach it, so the button should not be offered at all.
+{
+  const d = await openAt(1080, true);
+  const save = d.getElementById("save");
+  ok("the kiosk does not offer Save", d.body.dataset.kiosk ? save.offsetParent === null : true);
+  lines.push(`kiosk   data-kiosk=${d.body.dataset.kiosk ?? "(unset)"}, ` +
+             `Save ${save.offsetParent === null ? "hidden" : "VISIBLE"}`);
+}
+
+// Layout says nothing about whether the button saves anything. Catch the
+// anchor the handler builds and read the filename and the href off it: a
+// blob: href is what makes the saved file same-origin, which is the whole
+// reason the picture is fetched rather than linked.
+{
+  const d = await openAt(390, false);
+  const w = frame.contentWindow;
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  d.getElementById("result").src = PNG;
+  let grabbed = null;
+  const real = w.HTMLAnchorElement.prototype.click;
+  w.HTMLAnchorElement.prototype.click = function () {
+    if (this.download) grabbed = { name: this.download, href: this.href };
+  };
+  d.getElementById("save").click();
+  for (let i = 0; i < 100 && !grabbed; i++) await sleep(50);
+  w.HTMLAnchorElement.prototype.click = real;
+
+  ok("pressing Save hands over a file", Boolean(grabbed));
+  ok("it is served from a blob, not the original link",
+     Boolean(grabbed?.href.startsWith("blob:")));
+  ok("the filename says what it is and keeps the real type",
+     /^tryon-[a-z0-9-]*-\d{8}\d{4}\.png$/.test(grabbed?.name ?? ""));
+  ok("and the button says it worked", d.getElementById("save").classList.contains("saved"));
+  lines.push(`save    ${grabbed ? `${grabbed.name}  <- ${grabbed.href.slice(0, 12)}...` : "NOTHING HANDED OVER"}`);
+}
+
+const bad = checks.filter(([, p]) => !p);
+document.getElementById("log").innerHTML =
+  lines.join("\n") + "\n\n" +
+  checks.map(([n, p]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n");
+document.title = bad.length ? `dock-FAIL-${bad.length}` : "dock-PASS";
+history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")) +
+  "&m=" + encodeURIComponent(lines.join("~")));
+</script>
+</body>
+</html>

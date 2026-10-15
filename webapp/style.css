@@ -358,8 +358,17 @@ body[data-stage="working"] #wait { display: grid; }
 .waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
 .waitsub { font-size: clamp(12px, 1.4vw, 15px); color: var(--muted); }
 #resultacts { display: none; flex: 1 1 auto; gap: var(--s-2); align-items: center; }
-/* Three controls in a phone dock: they fit only if none of them wraps. */
+/* Four controls in a phone dock: they fit only if none of them wraps, which is
+   why Save carries a short label like the others. */
 #resultacts .btn { padding-inline: var(--s-3); font-size: 14px; }
+/* Confirmation, because a saved file is otherwise silent on a phone - iOS
+   shows no download shelf, and the customer is left pressing the button again. */
+.btn .done { display: none; }
+#save.saved .long, #save.saved .short { display: none; }
+#save.saved .done { display: inline; }
+/* The kiosk is the shop's own machine: a file saved there lands somewhere no
+   customer can reach. */
+body[data-kiosk] #save { display: none; }
 
 /* ======================================================= stage wiring ===*/
 body[data-stage="choose"]  #resultpane { display: none; }
@@ -472,6 +481,10 @@ body[data-stage="result"]  #resultacts { display: flex; }
 /* A dock this narrow needs the shorter label. */
 @media (max-width: 460px) {
   .btn .long { display: none; } .btn .short { display: inline; }
+  /* Four buttons at 360px only fit if they give up some of their padding too.
+     Measured: short labels alone still ran 6px over on a small phone. */
+  #resultacts { gap: var(--s-1); }
+  #resultacts .btn { padding-inline: var(--s-2); }
   /* The title truncated to "See you..." tells nobody anything, and on a phone
      the customer already knows what they opened. The status earns the room. */
   #bar h1 { display: none; }

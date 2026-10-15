@@ -25,7 +25,7 @@ const el = {
   waitnote: $("waitnote"), waitsub: $("waitsub"), lottie: $("lottie"),
   pct: $("pct"), meter: $("meter"), meterfill: $("meterfill"),
   result: $("result"), before: $("before"), provenance: $("provenance"),
-  compare: $("compare"), another: $("another"), restart: $("restart"),
+  compare: $("compare"), save: $("save"), another: $("another"), restart: $("restart"),
   attract: $("attract"), begin: $("begin"),
   idlewarn: $("idlewarn"), idlecount: $("idlecount"), stay: $("stay"),
 };
@@ -346,6 +346,43 @@ el.go.addEventListener("click", run);
 
 // "Does that look like me" is the only question, and it is answered by a
 // glance at the original rather than by any amount of copy.
+// Taking the picture away.
+//
+// The job hands back a data URL whenever the harvester could read the bytes,
+// and falls back to the generator's own CDN link only when it could not - so
+// this has to cope with both. The download attribute is ignored outright on a
+// cross-origin link, and the browser navigates to the picture instead, which
+// on a phone loses the page the customer was looking at. Fetching to a blob
+// first makes the saved file same-origin, and keeps the real file type rather
+// than guessing .jpg over a PNG.
+const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+
+async function save() {
+  const src = el.result.getAttribute("src");
+  if (!src) return;
+  const who = (garment?.name ?? "garment").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const when = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, "");
+  try {
+    const blob = await (await fetch(src)).blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = `tryon-${who}-${when}.${EXT[blob.type] ?? "jpg"}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoked late: Safari reads the URL after click() has already returned.
+    setTimeout(() => URL.revokeObjectURL(href), 10000);
+    el.save.classList.add("saved");
+    setTimeout(() => el.save.classList.remove("saved"), 2500);
+  } catch {
+    // CORS refused us the bytes. Opening it is all that is left, and a long
+    // press on the picture still saves it from there.
+    window.open(src, "_blank", "noopener");
+  }
+}
+el.save.addEventListener("click", save);
+
 const compareOn = () => body.classList.add("comparing");
 const compareOff = () => body.classList.remove("comparing");
 ["pointerdown"].forEach((e) => el.compare.addEventListener(e, compareOn));

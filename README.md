@@ -336,7 +336,7 @@ sarees/            the bundled garment photographs
 webapp/            the kiosk; tryon-client.js is the seam
 webapp/anim/       the sewing animation shown while it works
 webapp/vendor/     lottie-web, vendored so the shop machine needs no internet
-test/              six harnesses, two node checks and a console snippet
+test/              seven harnesses, three node checks and a console snippet
 ```
 
 ## Tests
@@ -384,9 +384,16 @@ string, so a headless run can read the result without a driver library.
 - `test/kiosk-shelf.html` drives the real kiosk page in an iframe against the
   real server: that a garment added in the panel reaches the screen, that the
   shelf is grouped, and that the tiles are buttons that report `aria-pressed`.
+- `test/result-dock.html` drives the same page at 360px, 390px and 1200px with
+  the result on screen. The dock holds four controls now that the picture can
+  be saved, and they fit on one line only if none of them wraps - so it
+  measures them rather than trusting the layout. It also catches the anchor the
+  Save button builds, to check that a file is handed over at all, that it comes
+  from a `blob:` URL rather than the generator's link, and that the name keeps
+  the real file type.
 
-**`mock-harvest.html`, `panel-photo.html` and `kiosk-layout.html` must run in
-real time**, not under `--virtual-time-budget`. Each waits on something that is
+**`mock-harvest.html`, `panel-photo.html`, `kiosk-layout.html` and
+`result-dock.html` must run in real time**, not under `--virtual-time-budget`. Each waits on something that is
 not a timer - an image decoding, a camera frame - while `harvest.js` polls on a
 `setInterval`; virtual time races that clock far ahead of the real work and the
 page is dumped before it finishes. It presents as a hang, which is a confusing
