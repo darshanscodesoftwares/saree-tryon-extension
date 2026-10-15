@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Which route is serving</title>
+<link rel="stylesheet" href="style.css">
+<!--
+  The switch, on a page of its own.
+
+  Not in the side panel, although that is the shopkeeper's other tool: the
+  whole point of the API route is that no browser needs the extension open, so
+  putting its only switch inside the extension would mean opening the thing you
+  are trying to stop needing. This is served by the same server the switch
+  lives in, so it works from a phone, from the shop's till, from anywhere that
+  can reach the queue.
+
+  Not linked from the kiosk either. A customer has no business here.
+-->
+<style>
+  body { padding: var(--s-4) var(--s-3); max-width: 560px; margin-inline: auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 var(--s-4); }
+
+  .now {
+    border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    background: var(--surface); padding: var(--s-3); margin-bottom: var(--s-4);
+  }
+  .now b { font-size: 17px; }
+  .now p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+  .choice {
+    display: block; width: 100%; text-align: left; margin-bottom: var(--s-2);
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    border-radius: var(--r); padding: var(--s-3); cursor: pointer; font: inherit;
+  }
+  .choice[aria-pressed="true"] { border-color: var(--accent); border-width: 2px; padding: calc(var(--s-3) - 1px); }
+  .choice:disabled { opacity: .55; cursor: not-allowed; }
+  .choice b { display: block; font-size: 15px; margin-bottom: 3px; }
+  .choice span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+  .key { display: flex; gap: var(--s-2); margin: var(--s-4) 0 0; }
+  .key input {
+    flex: 1 1 auto; min-width: 0; font: inherit; padding: 0 var(--s-3);
+    min-height: var(--tap); border: 1px solid var(--line); border-radius: 999px;
+    background: var(--surface); color: var(--text);
+  }
+  #say { margin-top: var(--s-3); font-size: 14px; min-height: 1.4em; }
+  #say.bad { color: var(--bad); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px;
+       margin: var(--s-4) 0 0; color: var(--muted); }
+  dt { white-space: nowrap; }
+  dd { margin: 0; color: var(--text); font-family: ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body data-stage="choose">
+
+<h1>Which route is serving</h1>
+<p class="sub">Who actually makes the picture when a customer presses the button.</p>
+
+<div class="now">
+  <b id="serving">checking…</b>
+  <p id="explain"></p>
+</div>
+
+<div id="choices"></div>
+
+<div class="key" id="keyrow" hidden>
+  <input id="controlkey" type="password" placeholder="Control key" autocomplete="off">
+  <button class="btn" id="savekey">Remember</button>
+</div>
+
+<p id="say" role="status" aria-live="polite"></p>
+
+<dl id="facts"></dl>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const api = (p) => new URL(p, location.href.replace(/\/webapp\/.*$/, "/")).href;
+
+// The key is held in this browser only. It never travels except as the header
+// on a flip, and the server is the only thing that can check it.
+const KEY = "saree-control-key";
+const keyOf = () => { try { return localStorage.getItem(KEY) ?? ""; } catch { return ""; } };
+
+const WHAT = {
+  extension: {
+    title: "The extension",
+    blurb: "A browser with the extension open drives ChatGPT and reads the answer back out of the page. Costs nothing, and that browser has to stay awake and signed in.",
+  },
+  api: {
+    title: "The paid API",
+    blurb: "This server asks the image API directly. No browser involved, nothing to keep awake - and every picture is billed.",
+  },
+  auto: {
+    title: "Automatic",
+    blurb: "The API when this server has a key, the extension when it does not. If the API refuses part way through, the job is handed to the extension rather than failed - so an expired card does not close the shop.",
+  },
+};
+
+const say = (text, bad = false) => {
+  $("say").textContent = text;
+  $("say").classList.toggle("bad", bad);
+};
+
+let state = null;
+
+function paint() {
+  const live = state.serving === "api" ? "the paid API" : "the extension";
+  $("serving").textContent = `Serving through ${live}`;
+  $("explain").textContent =
+    state.mode === "auto"
+      ? `Set to automatic, and ${state.api.ready ? "this server has a key, so the API is being used." : "there is no key here, so the extension is being used."}`
+      : `Set to ${state.mode}.`;
+
+  $("choices").replaceChildren();
+  for (const m of state.modes) {
+    const b = document.createElement("button");
+    b.className = "choice";
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(state.mode === m));
+    // Offering a choice that would fail every job is worse than not offering it.
+    const impossible = m === "api" && !state.api.ready;
+    b.disabled = impossible;
+    const t = document.createElement("b");
+    t.textContent = WHAT[m].title;
+    const d = document.createElement("span");
+    d.textContent = impossible
+      ? "No key on this server, so this would fail every job. Set OPENAI_API_KEY and restart."
+      : WHAT[m].blurb;
+    b.append(t, d);
+    b.addEventListener("click", () => choose(m));
+    $("choices").appendChild(b);
+  }
+
+  $("keyrow").hidden = !state.locked;
+
+  $("facts").replaceChildren();
+  const facts = [
+    ["model", state.api.ready ? `${state.api.model} · ${state.api.quality} · ${state.api.size}` : "no key set"],
+    ["extension", state.worker ? "working the queue" : "not here"],
+    ["switch", state.locked ? "needs the control key" : "open to anyone who can reach this server"],
+  ];
+  for (const [k, v] of facts) {
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd"); dd.textContent = v;
+    $("facts").append(dt, dd);
+  }
+}
+
+async function load() {
+  try {
+    state = await (await fetch(api("api/mode"))).json();
+    paint();
+  } catch {
+    say("Cannot reach the server.", true);
+  }
+}
+
+async function choose(m) {
+  if (m === state.mode) return;
+  say("");
+  try {
+    const r = await fetch(api("api/mode"), {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-control-key": keyOf() },
+      body: JSON.stringify({ mode: m }),
+    });
+    const body = await r.json();
+    if (!r.ok) return say(body.error ?? `refused (${r.status})`, true);
+    say(`Now serving through ${body.serving === "api" ? "the paid API" : "the extension"}.`);
+    await load();
+  } catch (e) {
+    say(String(e.message ?? e), true);
+  }
+}
+
+$("savekey").addEventListener("click", () => {
+  try { localStorage.setItem(KEY, $("controlkey").value.trim()); say("Key remembered in this browser."); }
+  catch { say("This browser will not store the key.", true); }
+});
+$("controlkey").value = keyOf();
+
+await load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

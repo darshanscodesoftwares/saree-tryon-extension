@@ -21,6 +21,7 @@ import { extname, join, normalize } from "node:path";
 import { networkInterfaces } from "node:os";
 import { randomUUID } from "node:crypto";
 import { GARMENTS as BUNDLED } from "./src/library.js";
+import * as imageApi from "./src/image-api.mjs";
 
 // ----------------------------------------------------------------- the queue
 //
@@ -31,6 +32,29 @@ import { GARMENTS as BUNDLED } from "./src/library.js";
 // One machine with a generator open therefore serves any number of screens,
 // which is also the shape the real thing has: tablets on the shop floor, one
 // machine in the back. In memory on purpose; a job outlives nothing.
+
+// WHICH ROUTE SERVES A JOB.
+//
+//   extension  a browser with the extension open drives ChatGPT and reads the
+//              answer back out of the page. Free, and needs that browser awake.
+//   api        this server asks a paid image API directly. No browser at all.
+//   auto       the API when there is a key, the extension when there is not -
+//              and the extension as a catch if the API refuses mid-job, so a
+//              shop does not stop selling because a card expired.
+//
+// auto is the default because with no key it behaves exactly like extension,
+// which is what every existing install already does.
+const MODES = ["extension", "api", "auto"];
+let mode = MODES.includes(process.env.MODE) ? process.env.MODE : "auto";
+
+// Flipping the switch spends money, so it can be held behind a shared secret.
+// Unset, the switch is open - fine on one LAN, and said out loud at startup
+// when it is not.
+const CONTROL_KEY = process.env.CONTROL_KEY ?? "";
+const mayControl = (req) => !CONTROL_KEY || req.headers["x-control-key"] === CONTROL_KEY;
+
+// Whether a job should go to the API rather than to the queue.
+const apiRoute = () => mode === "api" || (mode === "auto" && imageApi.ready());
 
 const jobs = new Map();            // id -> { state, request, image, notes, at }
 let workerLastSeen = 0;            // so a screen can say "nobody is listening"
@@ -77,6 +101,46 @@ const reap = () => {
   for (const [id, j] of jobs) if (j.at < cut) jobs.delete(id);
 };
 
+// THE SERVER AS ITS OWN WORKER.
+//
+// A job still goes into the queue and the screen still polls for it, exactly
+// as before - only the thing that picks it up changes. That is deliberate: the
+// kiosk's waiting screen, its progress meter and its deadline all keep
+// working, and none of them had to learn that there are now two routes.
+async function runOnApi(id) {
+  const j = jobs.get(id);
+  if (!j) return;
+  j.state = "running";
+  j.at = Date.now();                 // or a slow call looks like an old job to reap()
+  try {
+    const { image, notes } = await imageApi.generate(j.request);
+    j.state = "done";
+    j.image = image;
+    j.notes = notes;
+    console.log(`  job ${id.slice(0, 8)} delivered by the API`);
+  } catch (e) {
+    const why = String(e?.message ?? e);
+    // In auto, a refusal is not the customer's problem if a browser is there
+    // to take over. Out of credit at four o'clock should not close the shop.
+    const canFallBack = mode === "auto" && workerIsHere();
+    if (canFallBack) {
+      j.notes.push(`the API refused, handing this to the extension - ${why}`);
+      j.state = "waiting";
+      const first = waiters.values().next().value;
+      if (first) {
+        j.state = "running";
+        first({ id, ...j.request });
+      }
+      console.log(`  job ${id.slice(0, 8)} API refused, fell back to the extension: ${why}`);
+    } else {
+      j.state = "failed";
+      j.notes.push(why);
+      console.log(`  job ${id.slice(0, 8)} failed on the API: ${why}`);
+    }
+  }
+  j.at = Date.now();
+}
+
 const json = (res, code, body) => {
   res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
   res.end(JSON.stringify(body));
@@ -104,6 +168,16 @@ async function api(req, res, path) {
     if (!request?.person || !request?.saree) return json(res, 400, { error: "need person and saree" });
     const id = randomUUID();
     jobs.set(id, { state: "waiting", request, notes: [], at: Date.now() });
+
+    // The switch. In api mode this server does the work itself, and does not
+    // wait for the answer before replying - the screen polls for it, the same
+    // way it polls for the extension's.
+    if (apiRoute()) {
+      runOnApi(id);
+      console.log(`  job ${id.slice(0, 8)} posted - going to the API`);
+      return json(res, 201, { id, worker: true, via: "api" });
+    }
+
     const seen = workerIsHere();
     // Hand it straight to whoever is already waiting, so a job starts the
     // moment it arrives rather than on the next poll.
@@ -207,8 +281,38 @@ async function api(req, res, path) {
   }
 
   // Is anyone home?
+  // THE SWITCH. Read by anything, flipped by anyone holding the key.
+  if (path === "/api/mode" && req.method === "GET") {
+    return json(res, 200, {
+      mode, modes: MODES,
+      serving: apiRoute() ? "api" : "extension",
+      api: { ready: imageApi.ready(), model: imageApi.MODEL, quality: imageApi.QUALITY, size: imageApi.SIZE },
+      worker: workerIsHere(),
+      locked: Boolean(CONTROL_KEY),
+    });
+  }
+  if (path === "/api/mode" && req.method === "POST") {
+    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    const body = await readJson(req);
+    if (!MODES.includes(body?.mode)) return json(res, 400, { error: `mode must be one of ${MODES.join(", ")}` });
+    // Refused rather than accepted quietly: picking api with no key would
+    // fail every job from here on, and the failure would arrive one customer
+    // at a time instead of now.
+    if (body.mode === "api" && !imageApi.ready()) {
+      return json(res, 409, { error: "no OPENAI_API_KEY on this server, so api mode would fail every job" });
+    }
+    mode = body.mode;
+    console.log(`  mode is now ${mode} (serving via the ${apiRoute() ? "API" : "extension"})`);
+    return json(res, 200, { mode, serving: apiRoute() ? "api" : "extension" });
+  }
+
   if (path === "/api/health" && req.method === "GET") {
     return json(res, 200, {
+      mode,
+      // What a screen actually needs to know: in api mode "no extension" is
+      // not a fault, and saying "please ask one of us" would be a lie.
+      serving: apiRoute() ? "api" : "extension",
+      apiReady: imageApi.ready(),
       worker: workerIsHere(),
       garments: catalogue().length,
       // How stale, not just whether - "seen 90 seconds ago" and "never seen"
@@ -255,7 +359,7 @@ async function serve(req, res) {
     // endpoints are open to anyone who has the address, and a job carries a
     // customer's photograph. See the note on /api/jobs/next.
     res.setHeader("access-control-allow-origin", "*");
-    res.setHeader("access-control-allow-headers", "content-type");
+    res.setHeader("access-control-allow-headers", "content-type, x-control-key");
     if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
     try {
       return await api(req, res, path);
@@ -296,8 +400,19 @@ async function serve(req, res) {
 const PORT = Number(process.env.PORT) || 5200;
 const HTTPS_PORT = Number(process.env.HTTPS_PORT) || 5443;
 
+// Which route is live is the first thing worth knowing from a terminal, and
+// the one thing nobody thinks to check when every job is suddenly failing.
+console.log(
+  `  route     ${mode}` +
+  (mode === "auto" ? (imageApi.ready() ? " -> the API (a key is set)" : " -> the extension (no key set)") : "") +
+  (mode === "api" && !imageApi.ready() ? "  !! no OPENAI_API_KEY: every job will fail" : "")
+);
+if (!CONTROL_KEY) {
+  console.log("            anyone who can reach this server can flip that switch - set CONTROL_KEY to hold it shut");
+}
+
 createServer(serve).listen(PORT, () =>
-  console.log(`  desktop   http://localhost:${PORT}/webapp/      (the one that generates)`)
+  console.log(`  desktop   http://localhost:${PORT}/webapp/      (the one that generates)\n  switch    http://localhost:${PORT}/webapp/control.html`)
 );
 
 const lanAddress = () =>

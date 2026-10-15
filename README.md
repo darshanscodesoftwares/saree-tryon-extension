@@ -339,9 +339,47 @@ webapp/vendor/     lottie-web, vendored so the shop machine needs no internet
 test/              seven harnesses, three node checks and a console snippet
 ```
 
+## Which route serves a job
+
+Two ways to make a picture, one switch between them.
+
+- **`extension`** - a browser with the extension open drives ChatGPT and reads
+  the answer back out of the page. Free, and that browser has to stay awake and
+  signed in.
+- **`api`** - the server asks a paid image API directly. No browser at all, and
+  every picture is billed.
+- **`auto`** (the default) - the API when the server has an `OPENAI_API_KEY`,
+  the extension when it does not. If the API refuses part way through a job and
+  the extension is connected, the job is handed over rather than failed, so an
+  expired card does not close the shop.
+
+The switch lives in `server.mjs` because that is the only place both routes
+already meet. The kiosk never learns which one served it: a job still goes into
+the same queue and the screen still polls for it, so the waiting screen, the
+progress meter and the deadline are untouched. `src/image-api.mjs` holds the
+call itself, and `test/price-a-real-call.mjs` uses the same module, so there is
+one request shape rather than two drifting copies.
+
+Flip it at **`/webapp/control.html`** - deliberately its own page and not the
+side panel, because the point of the API route is that nothing needs the
+extension open, and putting the switch inside the extension would mean opening
+the thing you are trying to stop needing. `GET`/`POST /api/mode` is the same
+switch for anything else that wants it, and `/api/health` reports which route
+is live.
+
+Set `CONTROL_KEY` to stop anyone who can reach the server from flipping it;
+unset, the server says so at startup. Set `IMAGE_MODEL`, `IMAGE_QUALITY` and
+`IMAGE_SIZE` to pick what the API is asked for - the defaults are
+`gpt-image-2.5-sunburst`, `high`, `1024x1536`.
+
+**The request shape in `src/image-api.mjs` was written from documentation, not
+from something that ran.** With a bad key it is refused with a 401, which
+proves it reaches OpenAI and parses - the model id and the quality values are
+only confirmed by a call with a real key behind it.
+
 ## Tests
 
-`npm test` runs the two that need no browser. The rest are pages: `npm start`
+`npm test` runs the four that need no browser. The rest are pages: `npm start`
 and open them from the same origin.
 
 - `test/mock-generator.html` stands in for a generator's page and checks that
@@ -399,6 +437,14 @@ string, so a headless run can read the result without a driver library.
   from a `blob:` URL rather than the generator's link, and that the name keeps
   the real file type.
 
+- `node test/mode.mjs`, run by `npm test`, spawns the real server and exercises
+  the switch between the two routes - the states nobody thinks to try by hand.
+  That `api` cannot be chosen without a key, because the failure would
+  otherwise arrive one customer at a time. That a refused call fails the job
+  instead of leaving it waiting for a worker that will never come. That a
+  locked switch cannot be flipped without the key, and an unlocked one says so
+  at startup. It needs no key and spends nothing: the one case that reaches a
+  real call is proved by that call being refused.
 - `test/price-a-real-call.mjs` is the one test here that **costs money** - a
   few rupees - and so is deliberately not in `npm test`. Every per-picture
   figure we have quoted is arithmetic: the prices OpenAI publishes cover the
