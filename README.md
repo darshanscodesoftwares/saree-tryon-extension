@@ -399,6 +399,16 @@ string, so a headless run can read the result without a driver library.
   from a `blob:` URL rather than the generator's link, and that the name keeps
   the real file type.
 
+- `test/price-a-real-call.mjs` is the one test here that **costs money** - a
+  few rupees - and so is deliberately not in `npm test`. Every per-picture
+  figure we have quoted is arithmetic: the prices OpenAI publishes cover the
+  OUTPUT only, and at GPT Image 2.5's token counts the two reference
+  photographs we send cost more than the picture that comes back. That input
+  number cannot be looked up, because it depends on our photographs and our
+  wording. This buys one real answer and prints the exact split, the cost of a
+  client session, a demo and a month. Needs `OPENAI_API_KEY`, and an account
+  with credit on it - the free tier does not support image models at all.
+
 **`mock-harvest.html`, `panel-photo.html`, `kiosk-layout.html` and
 `result-dock.html` must run in real time**, not under `--virtual-time-budget`. Each waits on something that is
 not a timer - an image decoding, a camera frame - while `harvest.js` polls on a
