@@ -148,6 +148,7 @@ Load the extension, leave a signed-in generator tab open, and open the kiosk
 wherever you like. There is no third page to open. **If you change
 `manifest.json`, reload the extension at `chrome://extensions`.**
 
+
 ## The screen itself
 
 Three shapes from one stylesheet, and the breakpoints key on **orientation,
@@ -300,6 +301,7 @@ tells a customer nothing.
 ```
 manifest.json      MV3; side panel, no content scripts declared
 src/background.js  the worker: polls the queue, drives the generator
+src/config.js      where the queue is: localhost, or the Render address
 src/panel.*        the panel: camera, sarees, prompt, send
 src/inject.js      runs in the generator's page; the adapters live here
 server.mjs         serves this folder: http for the desktop, https for a phone

@@ -10,6 +10,7 @@
 // involved. The kiosk talks HTTP to a queue and nothing else.
 
 import { DEFAULT_KIND } from "./prompt.js";
+import { QUEUE } from "./config.js";
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
@@ -19,7 +20,9 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => 
 // right for a shopkeeper's tool and wrong for a screen a customer is looking
 // at. Disabling it per tab is the only way to keep it off the kiosk, so every
 // tab gets told which it is.
-const KIOSK = /^https?:\/\/(localhost|127\.0\.0\.1):5200\//;
+// Local or hosted, whichever the queue is - the kiosk is served from it.
+const LOCAL_KIOSK = /^https?:\/\/(localhost|127\.0\.0\.1):5200\//;
+const isKiosk = (url) => LOCAL_KIOSK.test(url) || url.startsWith(`${QUEUE}/`);
 
 async function setPanelFor(tab) {
   if (!tab?.id) return;
@@ -27,7 +30,7 @@ async function setPanelFor(tab) {
     await chrome.sidePanel.setOptions({
       tabId: tab.id,
       path: "src/panel.html",
-      enabled: !KIOSK.test(tab.url ?? ""),
+      enabled: !isKiosk(tab.url ?? ""),
     });
   } catch {
     // A tab can be gone by the time this runs; that is not an error worth having.
@@ -166,8 +169,6 @@ async function finish(id, body) {
 }
 
 // ---------------------------------------------------------------- the queue
-
-const QUEUE = "http://localhost:5200";
 
 const deliver = (id, body) =>
   fetch(`${QUEUE}/api/jobs/${id}/result`, {

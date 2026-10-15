@@ -16,7 +16,8 @@
     "*://chat.openai.com/*",
     "https://*.oaiusercontent.com/*",
     "http://localhost:5200/*",
-    "http://127.0.0.1:5200/*"
+    "http://127.0.0.1:5200/*",
+    "https://*.onrender.com/*"
   ],
   "background": {
     "service_worker": "src/background.js",
