@@ -148,6 +148,29 @@ Load the extension, leave a signed-in generator tab open, and open the kiosk
 wherever you like. There is no third page to open. **If you change
 `manifest.json`, reload the extension at `chrome://extensions`.**
 
+### Hosted, for a phone on any network
+
+The queue can live on Render instead, and then nothing has to share a
+network: the phone reaches Render, the laptop's extension reaches Render, and
+Render supplies the HTTPS a phone needs before it will open its camera.
+
+1. Push this repository and create a Blueprint from it on Render;
+   `render.yaml` describes the one free web service.
+2. Put the address Render gives it into `src/config.js`, and reload the
+   extension. The manifest already allows any `*.onrender.com` address.
+3. Open the kiosk at `https://<service>.onrender.com/webapp/` on the phone,
+   with a signed-in ChatGPT tab open on the laptop.
+
+The laptop still does all the generating, so it has to stay awake. A free
+service sleeps after fifteen minutes without a request and takes about a
+minute to wake; the extension's long poll keeps it awake once it is running,
+so open the address a minute before a demo. A restart empties the queue and
+the published garments - the worker republishes those on its next poll.
+
+**The queue is then public.** Anyone with the address can take a pending job,
+customer photograph included, or send work to the signed-in account. Fine for
+a demo with your own face; not for customers until the worker's endpoints ask
+for a shared secret.
 
 ## The screen itself
 
@@ -305,6 +328,7 @@ src/config.js      where the queue is: localhost, or the Render address
 src/panel.*        the panel: camera, sarees, prompt, send
 src/inject.js      runs in the generator's page; the adapters live here
 server.mjs         serves this folder: http for the desktop, https for a phone
+render.yaml        the same server, hosted on Render
 src/library.js     the garments that ship with it
 src/prompt.js      the three instructions, one per kind of garment
 src/harvest.js     runs in the generator's page; waits for the picture

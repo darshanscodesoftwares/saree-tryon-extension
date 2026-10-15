@@ -1,0 +1,14 @@
+# The kiosk and its queue, hosted, so a phone on any network can use it. The
+# extension on the laptop polls this service instead of localhost - set its
+# address in src/config.js once Render has given it one.
+#
+# One instance only: the queue is in memory, so two would each hold half the
+# jobs. No build step and no dependencies; Render supplies PORT and HTTPS.
+services:
+  - type: web
+    name: saree-tryon
+    runtime: node
+    plan: free
+    buildCommand: "true"
+    startCommand: node server.mjs
+    healthCheckPath: /api/health
