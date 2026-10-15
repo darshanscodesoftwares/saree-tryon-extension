@@ -235,11 +235,25 @@ const TYPES = {
 };
 
 async function serve(req, res) {
-  let path = decodeURIComponent((req.url ?? "/").split("?")[0]);
+  // A malformed percent-escape - "/%" is enough - makes decodeURIComponent
+  // throw. That happens before either try block below, and createServer does
+  // not await this function, so Node turns the rejection into an uncaught
+  // exception and the process exits. On one LAN that was a curiosity; served
+  // from the internet it is one request that takes the shop down and empties
+  // the queue, repeatable by anyone who finds the address.
+  let path;
+  try {
+    path = decodeURIComponent((req.url ?? "/").split("?")[0]);
+  } catch {
+    res.writeHead(400);
+    return res.end("bad path");
+  }
 
   if (path.startsWith("/api/")) {
     // The phone and the desktop are different origins, so the screens need to
-    // be allowed to call this. It serves one LAN and holds nothing private.
+    // be allowed to call this. Note what this now means: deployed, these
+    // endpoints are open to anyone who has the address, and a job carries a
+    // customer's photograph. See the note on /api/jobs/next.
     res.setHeader("access-control-allow-origin", "*");
     res.setHeader("access-control-allow-headers", "content-type");
     if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
@@ -250,7 +264,16 @@ async function serve(req, res) {
     }
   }
 
-  if (path === "/") path = "/webapp/";
+  // Render serves this at the bare root, but the app lives in /webapp/.
+  // Rewriting the path here would hand back the right page while the browser
+  // still believed it was at "/", so every relative href in it - style.css,
+  // app.js, the Lottie, the garment pictures - would be asked for one
+  // directory too high and 404. The page arrived; nothing it needed did.
+  // Redirect instead, so the address bar and the page agree.
+  if (path === "/") {
+    res.writeHead(302, { location: "/webapp/" });
+    return res.end();
+  }
   if (path.endsWith("/")) path += "index.html";
   const file = join(ROOT, normalize(path));
   if (!file.startsWith(ROOT)) {
