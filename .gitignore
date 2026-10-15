@@ -6,3 +6,8 @@ captures/
 
 # A development certificate is per-machine and is not shared.
 certs/
+
+# Documents written for people rather than for the repository - costings,
+# proposals, anything rendered to PDF. They are regenerated from source, and
+# a binary that changes wholesale on every edit does not belong in history.
+*.pdf
