@@ -9,4 +9,4 @@
 // The manifest already allows any *.onrender.com address. After changing this,
 // reload the extension at chrome://extensions - a service worker does not pick
 // up an edit by itself.
-export const QUEUE = "http://localhost:5200";
+export const QUEUE = "https://saree-tryon-qt39.onrender.com";
