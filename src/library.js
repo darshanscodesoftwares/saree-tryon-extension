@@ -17,4 +17,11 @@ export const GARMENTS = [
   { id: "black-pinstripe-jumpsuit", kind: "formals-women", name: "Black pinstripe jumpsuit", image: "sarees/black-pinstripe-jumpsuit.jpg" },
   { id: "teal-studio-silk", kind: "saree", name: "Teal, studio silk", image: "sarees/teal-studio-silk.jpg" },
   { id: "magenta-embroidered", kind: "saree", name: "Magenta, embroidered", image: "sarees/magenta-embroidered.jpg" },
+  { id: "blush-pink-bridal", kind: "saree", name: "Blush pink, bridal", image: "sarees/blush-pink-bridal.jpg" },
+  { id: "red-and-gold-bridal", kind: "saree", name: "Red and gold, bridal", image: "sarees/red-and-gold-bridal.jpg" },
+  { id: "pink-and-gold-silk", kind: "saree", name: "Pink and gold, silk", image: "sarees/pink-and-gold-silk.jpg" },
+  { id: "pink-and-gold-bridal", kind: "saree", name: "Pink and gold, bridal", image: "sarees/pink-and-gold-bridal.jpg" },
+  { id: "mauve-studio", kind: "saree", name: "Mauve, studio", image: "sarees/mauve-studio.jpg" },
+  { id: "gold-tissue-plain", kind: "saree", name: "Gold tissue, plain", image: "sarees/gold-tissue-plain.jpg" },
+  { id: "studio-bright", kind: "saree", name: "Studio, bright", image: "sarees/studio-bright.jpg" },
 ];

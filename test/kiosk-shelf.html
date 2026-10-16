@@ -42,7 +42,10 @@ async function openKiosk() {
   }
   return d;
 }
-const names = (d) => [...d.querySelectorAll(".tile .name")].map((c) => c.textContent.trim());
+// The first text node only: .name also carries a .sub with the kind in it,
+// and "Maroon shirt, black trousersFormals, men's" is not a garment's name.
+const names = (d) => [...d.querySelectorAll(".tile .name")]
+  .map((c) => (c.firstChild?.textContent ?? "").trim());
 // Kinds are tabs now, not stacked headings: the page is the same height with
 // three kinds as with one, and nobody scrolls past the sarees to find a shirt.
 const tabs = (d, selected = false) =>
@@ -62,9 +65,12 @@ try {
   await publish([]);
   let d = await openKiosk();
   ok("the bundled garments are offered", names(d).length >= 1);
+  // Kinds plus All, which exists so a customer who does not think in our
+  // categories does not have to.
   ok("tabs appear only when there is a choice to make",
-     BUNDLED_KINDS > 1 ? tabs(d).length === BUNDLED_KINDS : tabs(d).length === 0,
+     BUNDLED_KINDS > 1 ? tabs(d).length === BUNDLED_KINDS + 1 : tabs(d).length === 0,
      `${BUNDLED_KINDS} kinds, ${tabs(d).length} tabs`);
+  ok("and All is the one that opens", /^all/i.test(tabs(d, true)), tabs(d, true));
 
   // 2. the panel adds two formals; both must reach the screen, under the tab
   //    for their own kind.
@@ -74,7 +80,8 @@ try {
   ]);
   d = await openKiosk();
   ok("the bundled ones are still there", names(d).length >= 1);
-  ok("a tab exists for each kind on the shelf", tabs(d).length === 3, tabs(d).join(" / "));
+  ok("a tab exists for each kind on the shelf, plus All",
+     tabs(d).length === 4, tabs(d).join(" / "));
   ok("the tabs name the kinds",
      tabs(d).some((x) => /saree/i.test(x)) &&
      tabs(d).some((x) => /men/i.test(x)) &&
@@ -85,9 +92,10 @@ try {
   // shelf the same height however much the shop stocks.
   const racks = [...d.querySelectorAll(".rack")];
   ok("only one rack is on screen at a time", racks.length === 1, `${racks.length} racks`);
-  ok("and it holds only the selected kind",
-     names(d).every((n) => !/shirt and trousers|trouser suit/.test(n)) ||
-     tabs(d, true).match(/men|women/i) !== null);
+  // Opening on All, everything is reachable without choosing a category first.
+  ok("All shows every garment",
+     names(d).includes("a shirt and trousers") && names(d).includes("a trouser suit"),
+     names(d).join(", "));
 
   // Switching to menswear must show the menswear and nothing else.
   // By id, not by text: /men's/ also matches "women's", which quietly clicked

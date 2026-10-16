@@ -25,6 +25,16 @@
 <body>
 <iframe id="kiosk" src="about:blank" style="border:1px solid #333"></iframe>
 <pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+<!-- A harness with no error handler reports a crash as a hang, and "it hangs"
+     costs a morning that "it threw on line 80" costs a minute. -->
+<script>
+const fatal = (what) => {
+  document.title = "flow-THREW";
+  document.getElementById("log").textContent = "THREW: " + (what?.stack ?? what);
+};
+addEventListener("error", (e) => fatal(e.error ?? e.message));
+addEventListener("unhandledrejection", (e) => fatal(e.reason));
+</script>
 <script type="module">
 const checks = [];
 const ok = (n, p, detail = "") => checks.push([n, p, detail]);
@@ -52,7 +62,16 @@ async function openAt(w, h) {
     await sleep(50);
   }
   // Let images settle: an undecoded image has no height and everything fits.
-  await Promise.all([...d.querySelectorAll(".tile img")].map((i) => i.decode().catch(() => {})));
+  //
+  // Only the ones actually on screen, and never without a time limit. The
+  // tiles are loading="lazy" and the rack scrolls sideways, so most of a
+  // fourteen-garment shelf is never fetched at all - and decode() on an image
+  // that is never fetched does not reject, it simply never settles. That read
+  // as the whole harness hanging.
+  const settle = [...d.querySelectorAll(".tile img")]
+    .filter((i) => i.getBoundingClientRect().left < w + 200)
+    .map((i) => Promise.race([i.decode().catch(() => {}), sleep(1200)]));
+  await Promise.all(settle);
   await new Promise((r) => frame.contentWindow.requestAnimationFrame(
     () => frame.contentWindow.requestAnimationFrame(r)));
   return d;
@@ -66,12 +85,19 @@ for (const [w, h] of LAPTOPS) {
   ok(`${w}x${h}: the page does not scroll vertically`, over <= 1, `${over}px over`);
   ok(`${w}x${h}: nor sideways`, root.scrollWidth - root.clientWidth <= 1);
 
-  // The dock has to make room, not cover. Overlap is invisible until the
-  // thing underneath is the one a customer needed.
+  // The dock has to make room, not cover. Real overlap, not "is it lower
+  // down": the action sits in the Result card's corner on a laptop and in a
+  // bar across the bottom on a phone, and only one of those is answered by
+  // comparing two vertical positions.
   const dock = d.getElementById("act").getBoundingClientRect();
-  const shelf = d.getElementById("shelf").getBoundingClientRect();
-  ok(`${w}x${h}: the action bar does not cover the shelf`, shelf.bottom <= dock.top + 1,
-     `shelf ends ${Math.round(shelf.bottom)}, dock starts ${Math.round(dock.top)}`);
+  const hits = (a, b) =>
+    a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+  for (const id of ["shelf", "you", "chosen"]) {
+    const card = d.getElementById(id)?.getBoundingClientRect();
+    if (!card || !card.width) continue;
+    ok(`${w}x${h}: the action does not cover #${id}`, !hits(dock, card),
+       `dock ${Math.round(dock.left)},${Math.round(dock.top)} over ${id}`);
+  }
   ok(`${w}x${h}: the primary action is on screen`, dock.bottom <= h + 1 && dock.top >= 0);
 
   // Tiles big enough to judge a garment by. "Fits" is easy if everything is

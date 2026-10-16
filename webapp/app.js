@@ -8,7 +8,7 @@
 // It knows nothing about extensions, tabs or generators. It asks
 // tryon-client.js for a picture and shows what comes back.
 
-import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
+import { GARMENT_KINDS, DEFAULT_KIND, promptFor, kindOf } from "../src/prompt.js";
 import { available, garments, generate } from "./tryon-client.js";
 import { progressAt } from "./progress.js";
 
@@ -21,6 +21,9 @@ const el = {
   cancelcam: $("cancelcam"), upload: $("upload"),
   garmentsBox: $("garments"), go: $("go"),
   tabs: $("tabs"), pagecount: $("pagecount"),
+  chosenbox: $("chosenbox"), chosennote: $("chosennote"),
+  chosencount: $("chosencount"), photonote: $("photonote"),
+  resultempty: $("resultempty"),
   prevpage: $("prevpage"), nextpage: $("nextpage"),
   steps: $("steps"),
   chipYou: $("chip-you"), chipYouImg: $("chip-you-img"),
@@ -29,6 +32,7 @@ const el = {
   pct: $("pct"), meter: $("meter"), meterfill: $("meterfill"),
   result: $("result"), before: $("before"), provenance: $("provenance"),
   compare: $("compare"), save: $("save"), another: $("another"), restart: $("restart"),
+  act: $("act"), resultpane: $("resultpane"),
   attract: $("attract"), begin: $("begin"),
   idlewarn: $("idlewarn"), idlecount: $("idlecount"), stay: $("stay"),
 };
@@ -44,7 +48,8 @@ const KIOSK =
 // Which kind of garment the rack is showing. Null until the shelf arrives,
 // then the first kind that actually has something on it - never a tab that
 // opens onto nothing.
-let activeKind = null;
+const ALL = "all";
+let activeKind = ALL;
 
 let stream = null;
 let person = null;      // data URL
@@ -132,16 +137,22 @@ function renderGarments() {
   const present = GARMENT_KINDS.filter((k) =>
     shelf.some((g) => (g.kind ?? DEFAULT_KIND) === k.id));
 
+  // "All" first, then each kind that is actually stocked. All exists because
+  // a customer who does not think in our categories should not have to.
+  const choices = present.length > 1
+    ? [{ id: ALL, name: "All" }, ...present]
+    : present;
+
   // Never leave the tabs pointing at a kind that is no longer stocked - the
   // shelf is republished while the screen is open.
-  if (!present.some((k) => k.id === activeKind)) activeKind = present[0]?.id ?? null;
+  if (!choices.some((k) => k.id === activeKind)) activeKind = choices[0]?.id ?? ALL;
 
   // --- the tabs -----------------------------------------------------------
   el.tabs.replaceChildren();
   // One kind is not a choice, and a single tab reads as a disabled control.
   el.tabs.hidden = present.length < 2;
   if (present.length > 1) {
-    for (const kind of present) {
+    for (const kind of choices) {
       const t = document.createElement("button");
       t.type = "button";
       t.className = "tab";
@@ -155,15 +166,15 @@ function renderGarments() {
       t.textContent = kind.name;
       const n = document.createElement("span");
       n.className = "tab-n";
-      n.textContent = String(shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === kind.id).length);
+      n.textContent = String(onRack(kind.id).length);
       t.appendChild(n);
       t.addEventListener("click", () => showKind(kind.id));
       t.addEventListener("keydown", (e) => {
         const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
         if (!step) return;
         e.preventDefault();
-        const i = present.findIndex((k) => k.id === activeKind);
-        const next = present[(i + step + present.length) % present.length];
+        const i = choices.findIndex((k) => k.id === activeKind);
+        const next = choices[(i + step + choices.length) % choices.length];
         showKind(next.id);
         el.tabs.querySelector('[aria-selected="true"]')?.focus();
       });
@@ -172,7 +183,7 @@ function renderGarments() {
   }
 
   // --- the rack -----------------------------------------------------------
-  const mine = shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === activeKind);
+  const mine = onRack(activeKind);
   const rack = document.createElement("div");
   rack.className = "rack";
   rack.role = "tabpanel";
@@ -193,6 +204,12 @@ function renderGarments() {
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = g.name;
+    // What kind it is, under the name. On the All rack that is the only thing
+    // telling a shirt from a saree at a glance.
+    const sub = document.createElement("span");
+    sub.className = "sub";
+    sub.textContent = kindOf(g.kind ?? DEFAULT_KIND).name;
+    name.appendChild(sub);
     // Selection is drawn by CSS three ways - ring, tick and the name going
     // solid - so there is nothing to add here.
     b.append(img, name);
@@ -204,6 +221,9 @@ function renderGarments() {
   countShelf(mine.length);
   pagerState();
 }
+
+const onRack = (id) =>
+  id === ALL ? shelf : shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === id);
 
 function showKind(id) {
   if (id === activeKind) return;
@@ -323,6 +343,49 @@ function playSewing() {
 function refresh() {
   el.go.disabled = !(person && garment && ready);
   paintSteps();
+  paintChosen();
+}
+
+// WHAT HAS BEEN PICKED, WHERE IT CAN BE SEEN.
+//
+// The dock chips did this before and they are 56px circles at the bottom of
+// the screen - enough to notice that something is chosen, not enough to see
+// WHICH. This is the same fact at a size that answers the question.
+function paintChosen() {
+  el.chosencount.textContent = garment ? "1 selected" : "";
+  el.photonote.textContent = person ? "Added" : "";
+  el.chosenbox.replaceChildren();
+
+  if (!garment) {
+    el.chosennote.textContent = "";
+    const p = document.createElement("p");
+    p.className = "chosen-empty";
+    p.textContent = "Nothing picked yet.";
+    el.chosenbox.appendChild(p);
+    return;
+  }
+
+  el.chosennote.textContent = "1 selected";
+  const fig = document.createElement("figure");
+  fig.className = "chosen-one";
+  const img = document.createElement("img");
+  img.src = garment.src ?? garment.dataUrl;
+  img.alt = garment.name;
+  const cap = document.createElement("figcaption");
+  cap.textContent = garment.name;
+  const sub = document.createElement("span");
+  sub.className = "sub";
+  sub.textContent = kindOf(garment.kind ?? DEFAULT_KIND).name;
+  cap.appendChild(sub);
+  // Removing it here is the shortest way back from "that is not the one".
+  const drop = document.createElement("button");
+  drop.type = "button";
+  drop.className = "iconbtn drop";
+  drop.setAttribute("aria-label", `Remove ${garment.name}`);
+  drop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
+  drop.addEventListener("click", () => { garment = null; renderGarments(); refresh(); });
+  fig.append(img, cap, drop);
+  el.chosenbox.appendChild(fig);
 }
 
 // WHAT EACH STEP STILL WANTS.
@@ -384,6 +447,7 @@ async function run() {
     el.before.src = person;
     lastDiagnostic = notes.join("\n");
     el.provenance.textContent = notes.join("\n");
+    el.resultempty.hidden = true;
     stage("result");
   } catch (e) {
     stopMeter();
@@ -431,6 +495,7 @@ function wipe() {
   delete el.chipGarment.dataset.filled;
   el.result.removeAttribute("src");
   el.before.removeAttribute("src");
+  el.resultempty.hidden = false;
   // Otherwise the next customer's picture arrives already wearing a tick.
   el.save.classList.remove("saved");
   body.classList.remove("comparing");
@@ -567,7 +632,22 @@ async function check() {
   refresh();
 }
 
+// WHERE THE PRIMARY ACTION LIVES.
+//
+// On a phone and on the kiosk it is a bar across the bottom, within reach and
+// out of the way. On a laptop it belongs in the Result card's own corner,
+// beside the thing it produces. That is a different PARENT, not a different
+// position, and CSS cannot reparent - so the one button moves, rather than a
+// second copy being kept in step with the first.
+const DESK = matchMedia("(min-width: 1000px) and (min-aspect-ratio: 1/1)");
+function placeDock() {
+  const home = DESK.matches ? el.resultpane : body;
+  if (el.act.parentElement !== home) home.appendChild(el.act);
+}
+DESK.addEventListener("change", placeDock);
+
 (async function boot() {
+  placeDock();
   if (KIOSK) { body.dataset.kiosk = "1"; el.attract.hidden = false; stage("attract"); }
   else { el.attract.hidden = true; stage("choose"); }
   await check();
