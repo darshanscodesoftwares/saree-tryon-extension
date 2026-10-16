@@ -185,6 +185,41 @@ for (const [w, h] of PHONES) {
      (d.getElementById("pagecount").textContent ?? "").trim().length > 3);
 }
 
+// ------------------------------------- choosing does not move the rack
+//
+// Choosing used to rebuild the rack to express one changed attribute, and the
+// rebuild threw the scroll position away with it: picking the ninth saree
+// snapped back to the first, so the customer lost the one they had just
+// chosen. It also destroyed the button under the pointer, taking the
+// keyboard's focus with it.
+{
+  const d = await openAt(1366, 640);
+  const rack = d.querySelector(".rack");
+  const room = rack.scrollWidth - rack.clientWidth;
+  ok("there is enough on the rack to scroll", room > 50, `${Math.round(room)}px of travel`);
+
+  rack.scrollLeft = Math.round(room / 2);
+  await sleep(120);
+  const before = Math.round(rack.scrollLeft);
+
+  // The garment under the pointer, not the first one - the first one is where
+  // a broken rack would send us anyway, so choosing it proves nothing.
+  const far = [...d.querySelectorAll(".tile")].find(
+    (t) => t.getBoundingClientRect().left > rack.getBoundingClientRect().left + 20);
+  far.focus();
+  far.click();
+  await sleep(200);
+
+  const now = d.querySelector(".rack");
+  ok("choosing leaves the rack where it was", Math.abs(now.scrollLeft - before) <= 2,
+     `was ${before}, now ${Math.round(now.scrollLeft)}`);
+  ok("and the tile shows as chosen", now.querySelector('.tile[aria-pressed="true"]') !== null);
+  ok("only one is chosen", now.querySelectorAll('.tile[aria-pressed="true"]').length === 1);
+  // Rebuilding would have replaced the button and dropped focus to <body>.
+  ok("the keyboard keeps its place",
+     d.activeElement?.classList?.contains("tile"), d.activeElement?.tagName ?? "?");
+}
+
 // --------------------------------------------- what the steps actually say
 {
   const d = await openAt(1366, 768);

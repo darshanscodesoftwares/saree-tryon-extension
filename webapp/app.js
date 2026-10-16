@@ -185,6 +185,7 @@ function renderGarments() {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "tile";
+    b.dataset.id = g.id;
     b.setAttribute("aria-pressed", String(garment?.id === g.id));
     const img = document.createElement("img");
     img.src = g.src;
@@ -221,7 +222,13 @@ function renderGarments() {
     rack.appendChild(wrap);
   }
 
+  // A rebuild is right when the shelf itself changed, but it should not also
+  // move the rack: the catalogue is re-fetched every fifteen seconds, and a
+  // customer halfway along the rack should not be sent back to the start by
+  // a poll they cannot see.
+  const was = el.garmentsBox.querySelector(".rack")?.scrollLeft ?? 0;
   el.garmentsBox.replaceChildren(rack);
+  if (was) rack.scrollLeft = was;
   countShelf(mine.length);
   paintAddButton();
   pagerState();
@@ -288,8 +295,20 @@ async function choose(g) {
   };
   el.chipGarmentImg.src = src;
   el.chipGarment.dataset.filled = "1";
-  renderGarments();
+  // NOT a rebuild. Choosing changes one attribute on one tile, and rebuilding
+  // the rack to express that threw away the scroll position with it - so
+  // picking the ninth saree snapped the rack back to the first and the
+  // customer lost the one they had just chosen. It also destroyed the button
+  // under the pointer, which takes the keyboard's focus with it.
+  markChosen();
   refresh();
+}
+
+// Selection, written onto the tiles already on screen.
+function markChosen() {
+  for (const t of el.garmentsBox.querySelectorAll(".tile")) {
+    t.setAttribute("aria-pressed", String(t.dataset.id === garment?.id));
+  }
 }
 
 const urlToDataUrl = async (url) =>
