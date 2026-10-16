@@ -16,9 +16,7 @@ export const GARMENTS = [
   { id: "maroon-shirt-black-trousers", kind: "formals-men", name: "Maroon shirt, black trousers", image: "sarees/maroon-shirt-black-trousers.jpg" },
   { id: "black-pinstripe-jumpsuit", kind: "formals-women", name: "Black pinstripe jumpsuit", image: "sarees/black-pinstripe-jumpsuit.jpg" },
   { id: "teal-studio-silk", kind: "saree", name: "Teal, studio silk", image: "sarees/teal-studio-silk.jpg" },
-  { id: "magenta-embroidered", kind: "saree", name: "Magenta, embroidered", image: "sarees/magenta-embroidered.jpg" },
-  { id: "red-and-gold-bridal", kind: "saree", name: "Red and gold, bridal", image: "sarees/red-and-gold-bridal.jpg" },
-  { id: "mauve-studio", kind: "saree", name: "Mauve, studio", image: "sarees/mauve-studio.jpg" },
+      { id: "mauve-studio", kind: "saree", name: "Mauve, studio", image: "sarees/mauve-studio.jpg" },
   { id: "gold-tissue-plain", kind: "saree", name: "Gold tissue, plain", image: "sarees/gold-tissue-plain.jpg" },
   { id: "studio-bright", kind: "saree", name: "Studio, bright", image: "sarees/studio-bright.jpg" },
 ];
