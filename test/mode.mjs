@@ -143,6 +143,52 @@ await withServer({ OPENAI_API_KEY: "sk-not-a-real-key" }, async () => {
   ok("api route + no extension is a servable state", h.serving === "api" && !h.worker);
 });
 
+// ------------------------------------------- a garment added from a screen
+//
+// Once the API route serves, there is no extension running, so a screen is the
+// only way a garment reaches the shelf without a deploy. The subtle part is
+// that the extension REPLACES its whole published list on every poll - so the
+// two have to be kept apart, or adding a saree on the tablet is undone by the
+// laptop's next heartbeat.
+
+await withServer({}, async () => {
+  const base = (await get("/api/garments")).garments.length;
+
+  const add = (g) => fetch(`${BASE}/api/garments/add`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(g),
+  });
+
+  const r = await add({ kind: "formals-men", name: "A test shirt", dataUrl: PNG });
+  const made = await r.json();
+  ok("a screen can add a garment", r.status === 201, String(r.status));
+  ok("it keeps the kind it was added under", made.kind === "formals-men", made.kind);
+  ok("and says it will not outlive the process", made.temporary === true);
+  ok("it reaches the shelf", (await get("/api/garments")).garments.length === base + 1);
+
+  ok("a garment with no picture is refused",
+     (await add({ kind: "saree", name: "x" })).status === 400);
+  ok("and one with no name",
+     (await add({ kind: "saree", dataUrl: PNG })).status === 400);
+
+  // THE ONE THAT MATTERS. The extension republishing must not take it away.
+  await fetch(`${BASE}/api/garments`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ garments: [{ id: "ext-1", kind: "saree", name: "From the extension", src: PNG }] }),
+  });
+  const after = (await get("/api/garments")).garments.map((g) => g.name);
+  ok("the extension republishing does not wipe it", after.includes("A test shirt"), after.join(", "));
+  ok("and the extension's own still arrives", after.includes("From the extension"));
+
+  // Removing: only what a screen added. The bundled shelf is in the
+  // repository and a DELETE must not look like it can change that.
+  ok("a bundled garment cannot be deleted here",
+     (await fetch(`${BASE}/api/garments/blush-pink`, { method: "DELETE" })).status === 404);
+  ok("one added from a screen can be",
+     (await fetch(`${BASE}/api/garments/${made.id}`, { method: "DELETE" })).ok);
+  ok("and it leaves the shelf",
+     !(await get("/api/garments")).garments.some((g) => g.id === made.id));
+});
+
 // ------------------------------------------------------------- locked switch
 
 await withServer({ CONTROL_KEY: "shh" }, async (logOf) => {

@@ -107,3 +107,37 @@ export async function generate({ person, saree, prompt, onStage }) {
     if (Date.now() > until) throw new Error("no picture after four minutes");
   }
 }
+
+/**
+ * Put a garment on the shelf from a screen.
+ *
+ * The extension used to be the only way, and once the API route is serving
+ * there is no extension running at all - so without this a shopkeeper cannot
+ * add a saree without a deploy.
+ *
+ * `kind` decides which instruction is sent with it, so it has to be the
+ * category the shopkeeper was looking at, not a guess from the filename.
+ *
+ * It lasts as long as the server process: a free instance sleeps after fifteen
+ * idle minutes and loses it. The caller is expected to say so.
+ *
+ * @param {{kind: string, name: string, dataUrl: string}} g
+ * @returns {Promise<{id: string, temporary: boolean, total: number}>}
+ */
+export async function addGarment(g) {
+  const r = await fetch(api("../api/garments/add"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(g),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error ?? `the server refused it (${r.status})`);
+  return body;
+}
+
+/** Take one off again. Only ones added from a screen can be removed. */
+export async function dropGarment(id) {
+  const r = await fetch(api(`../api/garments/${id}`), { method: "DELETE" });
+  if (!r.ok) throw new Error(`could not remove it (${r.status})`);
+  return r.json();
+}

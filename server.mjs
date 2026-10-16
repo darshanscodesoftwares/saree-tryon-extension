@@ -66,9 +66,15 @@ const waiters = new Set();         // long-polling workers, woken by a new job
 // them here, because a kiosk cannot read the extension's storage - different
 // origin - and asking a shop to add every garment twice is not a workflow.
 let published = [];
+// Added from a screen rather than from the extension. Kept apart from
+// `published` on purpose: the extension REPLACES its whole list every time it
+// republishes, so anything added here would be wiped by the next poll if the
+// two shared a variable.
+let addedHere = [];
 const catalogue = () => [
   ...BUNDLED.map((g) => ({ id: g.id, kind: g.kind, name: g.name, src: `/${g.image}` })),
   ...published,
+  ...addedHere,
 ];
 
 // Whether the extension is talking to this server is the single most useful
@@ -277,6 +283,41 @@ async function api(req, res, path) {
     const changed = next.length !== published.length;
     published = next;
     if (changed) console.log(`  catalogue: ${catalogue().length} garments (${published.length} added in the panel)`);
+    return json(res, 200, { ok: true, total: catalogue().length });
+  }
+
+  // A screen adds one garment. The extension cannot do this any more once the
+  // API route is serving - there is no extension running - so this is the only
+  // way a shopkeeper puts a saree on the shelf without a deploy.
+  //
+  // It lives only as long as this process: free instances sleep after fifteen
+  // idle minutes and lose everything in memory. The screen says so rather
+  // than letting somebody find out in the morning. tools/add-garment.mjs is
+  // the permanent shelf.
+  if (path === "/api/garments/add" && req.method === "POST") {
+    const g = await readJson(req);
+    if (!g?.dataUrl?.startsWith("data:image/")) return json(res, 400, { error: "need an image" });
+    if (!g?.name?.trim()) return json(res, 400, { error: "need a name" });
+    const kind = String(g.kind ?? "saree");
+    const one = {
+      id: `screen-${randomUUID().slice(0, 8)}`,
+      kind,
+      name: g.name.trim().slice(0, 80),
+      src: g.dataUrl,
+    };
+    addedHere.push(one);
+    console.log(`  catalogue: + ${one.name} (${kind}) from a screen - ${catalogue().length} in all, until this process restarts`);
+    return json(res, 201, { ...one, temporary: true, total: catalogue().length });
+  }
+
+  // And takes one off again.
+  const drop = path.match(/^\/api\/garments\/(screen-[0-9a-f]{8})$/);
+  if (drop && req.method === "DELETE") {
+    const before = addedHere.length;
+    addedHere = addedHere.filter((g) => g.id !== drop[1]);
+    // Only ones added from a screen: the bundled shelf is in the repository
+    // and a DELETE here must not look like it can change that.
+    if (addedHere.length === before) return json(res, 404, { error: "not one of this screen's" });
     return json(res, 200, { ok: true, total: catalogue().length });
   }
 

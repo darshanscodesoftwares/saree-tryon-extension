@@ -101,7 +101,15 @@
          the shelf made the page taller and pushed the next step further out of
          sight; as tabs the page is the same height with three kinds as with
          one, and a customer looking for a shirt is not scrolling past sarees. -->
-    <div id="tabs" class="tabs" role="tablist" aria-labelledby="shelf-h"></div>
+    <div class="tabrow">
+      <div id="tabs" class="tabs" role="tablist" aria-labelledby="shelf-h"></div>
+      <!-- Adds to whichever category is open, so the garment arrives with the
+           right instruction attached rather than a guess from its filename. -->
+      <label class="btn addgarment" id="addlabel">
+        <span aria-hidden="true">+</span> <span id="addword">Add</span>
+        <input type="file" id="addfile" accept="image/jpeg,image/png,image/webp" hidden>
+      </label>
+    </div>
 
     <div id="garments" class="rack-wrap"></div>
 

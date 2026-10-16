@@ -339,6 +339,31 @@ webapp/vendor/     lottie-web, vendored so the shop machine needs no internet
 test/              seven harnesses, three node checks and a console snippet
 ```
 
+## Putting a garment on the shelf
+
+Two shelves, and only one of them survives anything.
+
+**The permanent one** is `src/library.js`, which is in the repository.
+`node tools/add-garment.mjs --kind saree --name "Teal" <image>` converts the
+file, caps it at 1200px, drops it in `sarees/` and writes the line. It survives
+restarts, redeploys and a sleeping free instance, and needs no extension.
+
+**The temporary one** is the Add button on the screen itself. It adds to
+whichever category tab is open - which is what gets the garment the right
+instruction - and is the only way to add one once the API route is serving,
+because then there is no extension running at all. It lives in the server's
+memory and goes when the process does, which on Render's free plan is after
+fifteen idle minutes. The screen says so when it adds one.
+
+Nothing in between is possible on the free plan: free web services cannot
+attach a persistent disk, and a free Render Postgres expires 30 days after it
+is created and is then deleted. The cheapest real database is about $6/month.
+
+Garments added from a screen are kept apart from the ones the extension
+publishes, because the extension REPLACES its whole list on every poll -
+sharing one variable would mean the laptop's next heartbeat undoing what
+somebody just added on a tablet.
+
 ## Which route serves a job
 
 Two ways to make a picture, one switch between them.

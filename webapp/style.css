@@ -234,7 +234,15 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
    Stacked under headings, every kind the shop added made the page taller and
    pushed the next step further out of sight. As tabs the shelf is the same
    height with three kinds as with one. */
-.tabs { display: flex; gap: var(--s-2); margin-bottom: var(--s-3); flex-wrap: wrap; }
+.tabrow { display: flex; align-items: flex-start; gap: var(--s-2); margin-bottom: var(--s-3); }
+.tabs { display: flex; gap: var(--s-2); flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+/* Sits with the tabs because it acts on whichever one is open. Outlined, not
+   filled: adding stock is the shopkeeper's job, and the filled button on this
+   screen belongs to the customer's. */
+.addgarment {
+  flex: none; min-height: 40px; padding-inline: var(--s-3);
+  font-size: 13px; gap: 5px; border-style: dashed;
+}
 .tabs[hidden] { display: none; }
 .tab {
   display: inline-flex; align-items: center; gap: 7px;

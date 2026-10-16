@@ -9,7 +9,7 @@
 // tryon-client.js for a picture and shows what comes back.
 
 import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
-import { available, garments, generate } from "./tryon-client.js";
+import { available, garments, generate, addGarment } from "./tryon-client.js";
 import { progressAt } from "./progress.js";
 
 const $ = (id) => document.getElementById(id);
@@ -21,6 +21,7 @@ const el = {
   cancelcam: $("cancelcam"), upload: $("upload"),
   garmentsBox: $("garments"), go: $("go"),
   tabs: $("tabs"), pagecount: $("pagecount"),
+  addfile: $("addfile"), addlabel: $("addlabel"), addword: $("addword"),
   prevpage: $("prevpage"), nextpage: $("nextpage"),
   steps: $("steps"),
   chipYou: $("chip-you"), chipYouImg: $("chip-you-img"),
@@ -202,6 +203,7 @@ function renderGarments() {
 
   el.garmentsBox.replaceChildren(rack);
   countShelf(mine.length);
+  paintAddButton();
   pagerState();
 }
 
@@ -210,6 +212,15 @@ function showKind(id) {
   activeKind = id;
   renderGarments();
   el.garmentsBox.querySelector(".rack")?.scrollTo({ left: 0 });
+}
+
+// The button says which rack it adds to. "Add" alone invites a shirt onto the
+// saree rack, and the kind is what decides the instruction it is sent with.
+function paintAddButton() {
+  const kind = GARMENT_KINDS.find((k) => k.id === activeKind);
+  el.addword.textContent = kind ? `Add ${kind.name.toLowerCase().replace(/,.*/, "")}` : "Add";
+  el.addlabel.setAttribute("aria-label",
+    kind ? `Add a garment to ${kind.name}` : "Add a garment");
 }
 
 function countShelf(n) {
@@ -525,6 +536,49 @@ async function save() {
   }
 }
 el.save.addEventListener("click", save);
+
+// ADDING A GARMENT FROM HERE.
+//
+// Once the API route is serving there is no extension running, so this is the
+// only way a garment reaches the shelf without a deploy. It goes onto whichever
+// rack is open, which is what gets it the right instruction.
+//
+// It lives as long as the server process does. On a free instance that is
+// until fifteen idle minutes pass. Said out loud, because the alternative is
+// a shopkeeper finding out in the morning.
+const GARMENT_MAX = 1536;   // the weave is the point, so more than a face gets
+
+el.addfile.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  if (/\.hei[cf]$/i.test(file.name) || /image\/hei[cf]/i.test(file.type)) {
+    return say("That is a HEIC photo, which this browser cannot open. Export it as JPEG first.", "warn");
+  }
+  let bmp;
+  try {
+    bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    return say("That file isn't a picture we can read. A JPEG, PNG or WebP works.", "warn");
+  }
+  const side = Math.min(GARMENT_MAX / Math.max(bmp.width, bmp.height), 1);
+  const dataUrl = toDataUrl(bmp, Math.round(bmp.width * side), Math.round(bmp.height * side), false);
+  bmp.close();
+
+  const name = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").slice(0, 80);
+  const kind = activeKind;
+  try {
+    const added = await addGarment({ kind, name, dataUrl });
+    shelf = await garments();
+    // Select it: somebody who just added a saree wants to try that saree.
+    const mine = shelf.find((g) => g.id === added.id);
+    if (mine) choose(mine);
+    else renderGarments();
+    say(`Added ${name}. It stays until this server restarts - put it in the shop's own list to keep it.`, "ready");
+  } catch (err) {
+    say(`Could not add that: ${err.message}`, "warn");
+  }
+});
 
 const compareOn = () => body.classList.add("comparing");
 const compareOff = () => body.classList.remove("comparing");
