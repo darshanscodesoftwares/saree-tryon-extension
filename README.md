@@ -367,6 +367,11 @@ the thing you are trying to stop needing. `GET`/`POST /api/mode` is the same
 switch for anything else that wants it, and `/api/health` reports which route
 is live.
 
+**Where the key goes.** Nowhere in this repository. `cp .env.example .env`,
+fill it in, and `npm start` reads it - `.env` is gitignored and must stay that
+way. On Render they are environment variables in the dashboard. Never in
+`src/config.js`, which is committed and public.
+
 Set `CONTROL_KEY` to stop anyone who can reach the server from flipping it;
 unset, the server says so at startup. Set `IMAGE_MODEL`, `IMAGE_QUALITY` and
 `IMAGE_SIZE` to pick what the API is asked for - the defaults are

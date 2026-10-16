@@ -11,3 +11,7 @@ certs/
 # proposals, anything rendered to PDF. They are regenerated from source, and
 # a binary that changes wholesale on every edit does not belong in history.
 *.pdf
+
+# The API key and anything else that is per-machine and secret. The server
+# reads this when it starts; nothing in src/ ever should.
+.env

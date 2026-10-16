@@ -5,7 +5,7 @@
   "description": "Side panel and kiosk front end for handing a capture and a saree to a web AI generator.",
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node --env-file-if-exists=.env server.mjs",
     "test": "node test/prompts.mjs && node test/contrast.mjs && node test/progress.mjs && node test/mode.mjs"
   }
 }
