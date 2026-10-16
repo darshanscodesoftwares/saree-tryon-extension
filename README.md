@@ -378,10 +378,11 @@ unset, the server says so at startup. Set `IMAGE_MODEL`, `IMAGE_QUALITY` and
 `gpt-image-2.5-sunburst`, `low`, `1024x1536` - low while the route is being
 proved, since the account's balance is its only cap.
 
-**The request shape in `src/image-api.mjs` was written from documentation, not
-from something that ran.** With a bad key it is refused with a 401, which
-proves it reaches OpenAI and parses - the model id and the quality values are
-only confirmed by a call with a real key behind it.
+The request shape in `src/image-api.mjs` was written from documentation and is
+now confirmed by a real call: `gpt-image-2.5-sunburst` at `low`, 1024x1536,
+two reference photographs, came back with a picture and cost about $0.02
+(roughly 2 rupees). Both routes run through that one module, so the pricing
+script and the live server cannot disagree about what is being bought.
 
 ## Tests
 
