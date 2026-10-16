@@ -421,13 +421,26 @@ const lanAddress = () =>
     .find((n) => n && n.family === "IPv4" && !n.internal)?.address;
 
 if (existsSync(join(ROOT, "certs/cert.pem")) && existsSync(join(ROOT, "certs/key.pem"))) {
-  createSecureServer(
+  const secure = createSecureServer(
     {
       cert: readFileSync(join(ROOT, "certs/cert.pem")),
       key: readFileSync(join(ROOT, "certs/key.pem")),
     },
     serve
-  ).listen(HTTPS_PORT, () =>
+  );
+  // The https listener is a convenience - it exists so a phone can reach the
+  // camera, which browsers only allow over https. It is not the service. A
+  // second copy of this server, or anything else already holding the port,
+  // used to take the whole process down with it AFTER http had bound happily,
+  // which reads as "the server will not start" when in fact it had.
+  secure.on("error", (e) => {
+    console.log(
+      e.code === "EADDRINUSE"
+        ? `  phone     port ${HTTPS_PORT} is taken - http is still serving (set HTTPS_PORT for a second copy)`
+        : `  phone     https did not start: ${e.message}`
+    );
+  });
+  secure.listen(HTTPS_PORT, () =>
     console.log(`  phone     https://${lanAddress() ?? "localhost"}:${HTTPS_PORT}/webapp/   (layout and camera only)`)
   );
 } else {

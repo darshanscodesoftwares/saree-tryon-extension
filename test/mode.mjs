@@ -14,6 +14,7 @@
 
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
+import { readFile } from "node:fs/promises";
 
 const PORT = 5411;
 const BASE = `http://localhost:${PORT}`;
@@ -109,6 +110,37 @@ await withServer({ OPENAI_API_KEY: "sk-not-a-real-key" }, async () => {
   }
   ok("a refused call fails the job rather than hanging", job?.state === "failed", job?.state);
   ok("and the reason reaches the screen", (job?.notes ?? []).join(" ").length > 10, (job?.notes ?? []).join(" ").slice(0, 80));
+});
+
+// --------------------------------------------- what the SCREEN makes of it
+//
+// The regression that shipped: health grew a `serving` field and the kiosk
+// was never taught to read it, so on the API route - with the server working
+// perfectly - every screen said "please ask one of us" and the button stayed
+// dead, because the only question it knew how to ask was whether a browser
+// extension was connected.
+
+{
+  const client = await readFile(new URL("../webapp/tryon-client.js", import.meta.url), "utf8");
+  const app = await readFile(new URL("../webapp/app.js", import.meta.url), "utf8");
+
+  ok("the client passes `serving` on from health", /serving:\s*h\.serving/.test(client));
+  ok("and defaults it for a server too old to send one", /h\.serving\s*\?\?\s*"extension"/.test(client));
+  ok("the screen reads it", /serving/.test(app) && /canServe/.test(app));
+  // The actual defect: readiness computed from `worker` alone.
+  ok("readiness is NOT decided by the extension alone",
+     !/ready\s*=\s*reachable\s*&&\s*worker\s*;/.test(app));
+  ok("the API route counts as being able to serve",
+     /serving\s*===\s*"api"\s*\|\|\s*worker/.test(app));
+}
+
+// Health has to carry it, or none of the above has anything to read.
+await withServer({ OPENAI_API_KEY: "sk-not-a-real-key" }, async () => {
+  const h = await get("/api/health");
+  ok("health says which route is serving", h.serving === "api", h.serving);
+  ok("and health still reports the extension separately", h.worker === false);
+  // The shape the screen depends on: serving api, no extension, still fine.
+  ok("api route + no extension is a servable state", h.serving === "api" && !h.worker);
 });
 
 // ------------------------------------------------------------- locked switch

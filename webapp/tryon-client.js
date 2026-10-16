@@ -30,16 +30,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * "nobody is running the desktop page" - two waits that look identical from
  * here and need different things done about them.
  *
- * @returns {Promise<{reachable: boolean, worker: boolean, waiting: number}>}
+ * `serving` is which route is live - "api" or "extension". It matters here
+ * because "no extension is connected" is a fault on one route and completely
+ * normal on the other, and a screen that cannot tell them apart tells a
+ * customer to go and find a member of staff about a server that is working
+ * perfectly.
+ *
+ * @returns {Promise<{reachable: boolean, worker: boolean, serving: string, waiting: number}>}
  */
 export async function available() {
   try {
     const r = await fetch(api("../api/health"), { cache: "no-store" });
     if (!r.ok) throw new Error(String(r.status));
     const h = await r.json();
-    return { reachable: true, worker: Boolean(h.worker), waiting: h.waiting ?? 0 };
+    return {
+      reachable: true,
+      worker: Boolean(h.worker),
+      // Older servers do not send this. Reading it as the extension route
+      // keeps them behaving exactly as they did.
+      serving: h.serving ?? "extension",
+      waiting: h.waiting ?? 0,
+    };
   } catch {
-    return { reachable: false, worker: false, waiting: 0 };
+    return { reachable: false, worker: false, serving: "extension", waiting: 0 };
   }
 }
 

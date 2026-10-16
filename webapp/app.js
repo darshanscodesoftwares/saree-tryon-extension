@@ -404,13 +404,17 @@ el.staff.addEventListener("click", () => {
 // ------------------------------------------------------------------ boot
 
 async function check() {
-  const { reachable, worker } = await available();
-  if (!reachable || !worker) {
+  const { reachable, worker, serving } = await available();
+  // On the API route the server does the work itself, so whether a browser
+  // with the extension is connected says nothing at all about whether a
+  // customer can be served.
+  const canServe = reachable && (serving === "api" || worker);
+  if (!canServe) {
     say("This screen is having a moment - please ask one of us.", "warn",
         reachable ? "the server is up but no extension is working the queue"
                   : "cannot reach the server - is `npm start` running?");
   } else {
-    say("Ready when you are", "ready", "all good");
+    say("Ready when you are", "ready", serving === "api" ? "all good - serving through the API" : "all good");
   }
   if (reachable) {
     const next = await garments().catch(() => shelf);
@@ -420,7 +424,7 @@ async function check() {
       renderGarments();
     }
   }
-  ready = reachable && worker;
+  ready = canServe;
   refresh();
 }
 
