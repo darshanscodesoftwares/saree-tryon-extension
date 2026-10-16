@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>flow-start</title>
+<!--
+  The whole workflow has to fit a laptop without the page moving.
+
+  That is an acceptance criterion rather than a preference: a customer who has
+  to scroll to find the garments, and scroll back to find the button, cannot
+  see what they picked and what they are about to do at the same time. The two
+  sizes checked are the ones laptops actually are - 1366x768 and 1440x900 - and
+  the number that decides it is scrollHeight against clientHeight, which is
+  true or false and not a matter of taste.
+
+  It also checks the things that make that possible and would silently undo it:
+  that the kinds are tabs rather than stacked headings, so more garments never
+  means a taller page; that the rack runs sideways; and that the dock does not
+  simply sit on top of the content it was supposed to make room for.
+
+  Same origin, so the iframe's DOM can be read. Needs `npm start`.
+  Run in REAL time: it waits on layout and images, which are not timers.
+-->
+</head>
+<body>
+<iframe id="kiosk" src="about:blank" style="border:1px solid #333"></iframe>
+<pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
+<script type="module">
+const checks = [];
+const ok = (n, p, detail = "") => checks.push([n, p, detail]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const api = (p) => new URL(p, location.href).href;
+const frame = document.getElementById("kiosk");
+const lines = [];
+
+// The sizes laptops are. 1366x768 is the tightest in height, which is the
+// axis that breaks.
+const LAPTOPS = [[1366, 768], [1440, 900]];
+// Phones are allowed to scroll DOWN - the spec says so, and a guided
+// one-task-at-a-time column should. They are never allowed to scroll
+// SIDEWAYS: that is always something sticking out, and it crops the thing
+// that stuck out rather than making it reachable.
+const PHONES = [[390, 844], [360, 740]];
+
+async function openAt(w, h) {
+  frame.style.width = `${w}px`;
+  frame.style.height = `${h}px`;
+  await new Promise((done) => { frame.onload = done; frame.src = api("../webapp/") + "?w=" + w; });
+  const d = frame.contentDocument;
+  for (let i = 0; i < 120; i++) {
+    if (d.body.dataset.stage && d.querySelectorAll(".tile").length) break;
+    await sleep(50);
+  }
+  // Let images settle: an undecoded image has no height and everything fits.
+  await Promise.all([...d.querySelectorAll(".tile img")].map((i) => i.decode().catch(() => {})));
+  await new Promise((r) => frame.contentWindow.requestAnimationFrame(
+    () => frame.contentWindow.requestAnimationFrame(r)));
+  return d;
+}
+
+for (const [w, h] of LAPTOPS) {
+  const d = await openAt(w, h);
+  const root = d.documentElement;
+  const over = root.scrollHeight - root.clientHeight;
+
+  ok(`${w}x${h}: the page does not scroll vertically`, over <= 1, `${over}px over`);
+  ok(`${w}x${h}: nor sideways`, root.scrollWidth - root.clientWidth <= 1);
+
+  // The dock has to make room, not cover. Overlap is invisible until the
+  // thing underneath is the one a customer needed.
+  const dock = d.getElementById("act").getBoundingClientRect();
+  const shelf = d.getElementById("shelf").getBoundingClientRect();
+  ok(`${w}x${h}: the action bar does not cover the shelf`, shelf.bottom <= dock.top + 1,
+     `shelf ends ${Math.round(shelf.bottom)}, dock starts ${Math.round(dock.top)}`);
+  ok(`${w}x${h}: the primary action is on screen`, dock.bottom <= h + 1 && dock.top >= 0);
+
+  // Tiles big enough to judge a garment by. "Fits" is easy if everything is
+  // shrunk until it cannot be read, and that is not what was asked for.
+  const tile = d.querySelector(".tile")?.getBoundingClientRect();
+  ok(`${w}x${h}: garments are still big enough to see`, (tile?.width ?? 0) >= 120,
+     `${Math.round(tile?.width ?? 0)}px wide`);
+
+  lines.push(`${w}x${h}  page over by ${over}px | dock top ${Math.round(dock.top)} | ` +
+             `tile ${Math.round(tile?.width ?? 0)}px | tabs ${d.querySelectorAll(".tab").length}`);
+}
+
+for (const [w, h] of PHONES) {
+  const d = await openAt(w, h);
+  const root = d.documentElement;
+  const sideways = root.scrollWidth - root.clientWidth;
+  ok(`${w}x${h}: nothing sticks out sideways`, sideways <= 1, `${sideways}px over`);
+
+  // Find what is sticking out, because "something is 10px too wide" is a
+  // morning's work and "the rack is 10px too wide" is a minute's.
+  if (sideways > 1) {
+    const wide = [...d.querySelectorAll("body *")]
+      .filter((n) => n.getBoundingClientRect().right > w + 1)
+      .slice(0, 4)
+      .map((n) => `${n.tagName.toLowerCase()}${n.id ? "#" + n.id : n.className ? "." + String(n.className).split(" ")[0] : ""}`);
+    lines.push(`${w}x${h}  sticking out: ${wide.join(", ")}`);
+  }
+
+  const dock = d.getElementById("act").getBoundingClientRect();
+  ok(`${w}x${h}: the primary action is still reachable`, dock.bottom <= h + 1);
+  const tile = d.querySelector(".tile")?.getBoundingClientRect();
+  ok(`${w}x${h}: garments are still tappable`, (tile?.width ?? 0) >= 110, `${Math.round(tile?.width ?? 0)}px`);
+  lines.push(`${w}x${h}  sideways ${sideways}px | tile ${Math.round(tile?.width ?? 0)}px`);
+}
+
+// --------------------------------------------------- tabs, not a tall list
+{
+  const d = await openAt(1366, 768);
+  const tabs = [...d.querySelectorAll(".tab")];
+  ok("the kinds are tabs", tabs.length >= 2, `${tabs.length} tabs`);
+  ok("exactly one is selected",
+     tabs.filter((t) => t.getAttribute("aria-selected") === "true").length === 1);
+  ok("the tablist is one keyboard stop, not several",
+     tabs.filter((t) => t.tabIndex === 0).length === 1);
+
+  // Only the chosen kind is on the rack - that is what keeps the page short.
+  const before = d.querySelectorAll(".tile").length;
+  const other = tabs.find((t) => t.getAttribute("aria-selected") !== "true");
+  other.click();
+  await sleep(120);
+  ok("choosing a kind swaps the rack", d.querySelectorAll(".tile").length !== before ||
+     d.querySelector(".tab[aria-selected='true']").textContent !== tabs[0].textContent);
+  ok("and the page still does not scroll",
+     d.documentElement.scrollHeight - d.documentElement.clientHeight <= 1);
+
+  // Sideways, not downwards: one row however many garments there are.
+  const rack = d.querySelector(".rack");
+  const tops = [...d.querySelectorAll(".tile")].map((t) => Math.round(t.getBoundingClientRect().top));
+  ok("the rack is one row", new Set(tops).size === 1, `${new Set(tops).size} rows`);
+  ok("it scrolls sideways", getComputedStyle(rack).overflowX === "auto");
+
+  // Every garment reachable without the page growing.
+  ok("the count says what is on this rack",
+     (d.getElementById("pagecount").textContent ?? "").trim().length > 3);
+}
+
+// --------------------------------------------- what the steps actually say
+{
+  const d = await openAt(1366, 768);
+  const steps = [...d.querySelectorAll(".step")];
+  ok("there are three steps", steps.length === 3);
+  ok("each says what it wants, not just a number",
+     steps.every((s) => (s.querySelector(".step-state")?.textContent ?? "").trim().length > 2),
+     steps.map((s) => s.querySelector(".step-state")?.textContent).join(" | "));
+  ok("one is marked current for a screen reader",
+     steps.filter((s) => s.hasAttribute("aria-current")).length === 1);
+  // Status is carried in words, so it does not depend on seeing a colour.
+  ok("the first step asks for a photo",
+     /needed/i.test(steps[0].querySelector(".step-state").textContent));
+
+  // Picking a garment has to move the story on.
+  d.querySelector(".tile").click();
+  await sleep(120);
+  const outfit = steps[1].querySelector(".step-state").textContent;
+  ok("choosing a garment names it on the step", outfit.trim().length > 3 && !/needed/i.test(outfit), outfit);
+  lines.push(`steps   ${steps.map((s) => s.querySelector(".step-state").textContent.trim()).join(" / ")}`);
+}
+
+// ------------------------------------------------------------------ report
+const bad = checks.filter(([, p]) => !p);
+document.getElementById("log").innerHTML =
+  lines.join("\n") + "\n\n" +
+  checks.map(([n, p, d]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}${p || !d ? "" : `  -> ${d}`}</span>`).join("\n");
+document.title = bad.length ? `flow-FAIL-${bad.length}` : "flow-PASS";
+history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")) +
+  "&m=" + encodeURIComponent(lines.join("~")));
+</script>
+</body>
+</html>

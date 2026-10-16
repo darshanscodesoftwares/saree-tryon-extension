@@ -4,6 +4,10 @@
 #
 # One instance only: the queue is in memory, so two would each hold half the
 # jobs. No build step and no dependencies; Render supplies PORT and HTTPS.
+#
+# There is no .env here - that file is for a laptop and is gitignored. The two
+# secrets below are set in the Render dashboard, which is also the only place
+# they are stored.
 services:
   - type: web
     name: saree-tryon
@@ -12,3 +16,15 @@ services:
     buildCommand: "true"
     startCommand: node server.mjs
     healthCheckPath: /api/health
+    # Declared, never valued here. sync: false means Render asks for each one
+    # in the dashboard and keeps it there; nothing secret is in this file, and
+    # this file is public.
+    envVars:
+      # Without it the service runs on the extension route exactly as before,
+      # so leaving it blank is a working configuration, not a broken one.
+      - key: OPENAI_API_KEY
+        sync: false
+      # Holds the route switch shut. On a public address this is what stops a
+      # stranger flipping the service into API mode and spending the balance.
+      - key: CONTROL_KEY
+        sync: false

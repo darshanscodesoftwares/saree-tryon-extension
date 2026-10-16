@@ -20,6 +20,9 @@ const el = {
   start: $("start"), capture: $("capture"), retake: $("retake"),
   cancelcam: $("cancelcam"), upload: $("upload"),
   garmentsBox: $("garments"), go: $("go"),
+  tabs: $("tabs"), pagecount: $("pagecount"),
+  prevpage: $("prevpage"), nextpage: $("nextpage"),
+  steps: $("steps"),
   chipYou: $("chip-you"), chipYouImg: $("chip-you-img"),
   chipGarment: $("chip-garment"), chipGarmentImg: $("chip-garment-img"),
   waitnote: $("waitnote"), waitsub: $("waitsub"), lottie: $("lottie"),
@@ -38,6 +41,11 @@ const KIOSK =
   new URLSearchParams(location.search).has("kiosk") ||
   window.matchMedia("(min-width: 760px) and (orientation: portrait)").matches;
 
+// Which kind of garment the rack is showing. Null until the shelf arrives,
+// then the first kind that actually has something on it - never a tab that
+// opens onto nothing.
+let activeKind = null;
+
 let stream = null;
 let person = null;      // data URL
 let garment = null;     // { id, kind, name, dataUrl }
@@ -45,7 +53,7 @@ let shelf = [];
 let ready = false;
 let lastDiagnostic = "nothing has gone wrong yet.";
 
-const stage = (s) => { body.dataset.stage = s; idle.restart(); };
+const stage = (s) => { body.dataset.stage = s; paintSteps(); idle.restart(); };
 const photo = (p) => { body.dataset.photo = p; };
 
 // Written for a shopper. Anything that names the extension, the queue or
@@ -114,42 +122,130 @@ function dropPhoto() {
 
 // ----------------------------------------------------------------- shelf
 
+// The shelf: one kind at a time, in a rack that scrolls sideways.
+//
+// It used to stack every kind down the page under its own heading, so each
+// kind the shop added made the page taller and pushed the next step further
+// out of sight. Tabs keep the page the same height whatever is on the shelf,
+// and a customer looking for a shirt never scrolls past the sarees.
 function renderGarments() {
-  el.garmentsBox.replaceChildren();
   const present = GARMENT_KINDS.filter((k) =>
     shelf.some((g) => (g.kind ?? DEFAULT_KIND) === k.id));
-  for (const kind of present) {
-    const section = document.createElement("section");
-    if (present.length > 1) {
-      // A heading over the only kind on the shelf tells a customer nothing.
-      const h = document.createElement("h3");
-      h.className = "group";
-      h.textContent = kind.name;
-      section.appendChild(h);
+
+  // Never leave the tabs pointing at a kind that is no longer stocked - the
+  // shelf is republished while the screen is open.
+  if (!present.some((k) => k.id === activeKind)) activeKind = present[0]?.id ?? null;
+
+  // --- the tabs -----------------------------------------------------------
+  el.tabs.replaceChildren();
+  // One kind is not a choice, and a single tab reads as a disabled control.
+  el.tabs.hidden = present.length < 2;
+  if (present.length > 1) {
+    for (const kind of present) {
+      const t = document.createElement("button");
+      t.type = "button";
+      t.className = "tab";
+      t.role = "tab";
+      t.id = `tab-${kind.id}`;
+      const on = kind.id === activeKind;
+      t.setAttribute("aria-selected", String(on));
+      // Roving tabindex: the tablist is one stop, and the arrows move within
+      // it. Three tabs should not be three stops on the way to the garments.
+      t.tabIndex = on ? 0 : -1;
+      t.textContent = kind.name;
+      const n = document.createElement("span");
+      n.className = "tab-n";
+      n.textContent = String(shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === kind.id).length);
+      t.appendChild(n);
+      t.addEventListener("click", () => showKind(kind.id));
+      t.addEventListener("keydown", (e) => {
+        const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        const i = present.findIndex((k) => k.id === activeKind);
+        const next = present[(i + step + present.length) % present.length];
+        showKind(next.id);
+        el.tabs.querySelector('[aria-selected="true"]')?.focus();
+      });
+      el.tabs.appendChild(t);
     }
-    const rack = document.createElement("div");
-    rack.className = "rack";
-    for (const g of shelf.filter((x) => (x.kind ?? DEFAULT_KIND) === kind.id)) {
-      // A real button: focusable, operable by keyboard, announced as pressed.
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "tile";
-      b.setAttribute("aria-pressed", String(garment?.id === g.id));
-      const img = document.createElement("img");
-      img.src = g.src;
-      img.alt = "";
-      img.loading = "lazy";
-      const name = document.createElement("span");
-      name.className = "name";
-      name.textContent = g.name;
-      b.append(img, name);
-      b.addEventListener("click", () => choose(g));
-      rack.appendChild(b);
-    }
-    section.appendChild(rack);
-    el.garmentsBox.appendChild(section);
   }
+
+  // --- the rack -----------------------------------------------------------
+  const mine = shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === activeKind);
+  const rack = document.createElement("div");
+  rack.className = "rack";
+  rack.role = "tabpanel";
+  if (activeKind) rack.setAttribute("aria-labelledby", `tab-${activeKind}`);
+
+  for (const g of mine) {
+    // A real button: focusable, operable by keyboard, announced as pressed.
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tile";
+    b.setAttribute("aria-pressed", String(garment?.id === g.id));
+    const img = document.createElement("img");
+    img.src = g.src;
+    // Named, not decorative. A screen reader on a shelf of empty images has
+    // nothing to choose between.
+    img.alt = g.name;
+    img.loading = "lazy";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = g.name;
+    // Selection is drawn by CSS three ways - ring, tick and the name going
+    // solid - so there is nothing to add here.
+    b.append(img, name);
+    b.addEventListener("click", () => choose(g));
+    rack.appendChild(b);
+  }
+
+  el.garmentsBox.replaceChildren(rack);
+  countShelf(mine.length);
+  pagerState();
 }
+
+function showKind(id) {
+  if (id === activeKind) return;
+  activeKind = id;
+  renderGarments();
+  el.garmentsBox.querySelector(".rack")?.scrollTo({ left: 0 });
+}
+
+function countShelf(n) {
+  const kind = GARMENT_KINDS.find((k) => k.id === activeKind);
+  el.pagecount.textContent = !n
+    ? "Nothing on this rack yet"
+    : `${n} ${kind ? kind.name.toLowerCase() : "garments"}`;
+}
+
+// The arrows are only useful while there is somewhere to go, and a dead
+// control a customer can still press is worse than one that is plainly spent.
+function pagerState() {
+  const rack = el.garmentsBox.querySelector(".rack");
+  if (!rack) return;
+  const over = rack.scrollWidth - rack.clientWidth;
+  const at = rack.scrollLeft;
+  const spare = over > 4;
+  el.prevpage.disabled = !spare || at <= 2;
+  el.nextpage.disabled = !spare || at >= over - 2;
+  // Hidden entirely when everything already fits: two permanently dead arrows
+  // read as something broken.
+  el.prevpage.hidden = el.nextpage.hidden = !spare;
+}
+
+const nudge = (by) => {
+  const rack = el.garmentsBox.querySelector(".rack");
+  if (!rack) return;
+  // A tile and a bit, so something new is always half in view to be reached for.
+  const tile = rack.querySelector(".tile")?.getBoundingClientRect().width ?? 160;
+  rack.scrollBy({ left: by * (tile + 12) * 2, behavior: "smooth" });
+};
+el.prevpage.addEventListener("click", () => nudge(-1));
+el.nextpage.addEventListener("click", () => nudge(1));
+el.garmentsBox.addEventListener("scroll", pagerState, { capture: true, passive: true });
+addEventListener("resize", pagerState, { passive: true });
+
 
 async function choose(g) {
   const src = g.src;
@@ -226,6 +322,37 @@ function playSewing() {
 
 function refresh() {
   el.go.disabled = !(person && garment && ready);
+  paintSteps();
+}
+
+// WHAT EACH STEP STILL WANTS.
+//
+// Two numbered boxes with no status was the complaint, and it was fair: the
+// numbers said there were three things to do and nothing said which one was
+// live or what it was waiting for. Each step now carries its own state in
+// words, so it does not depend on noticing a colour, and aria-current carries
+// the same fact to anyone who cannot see one.
+function paintSteps() {
+  const at = body.dataset.stage === "result" ? "review"
+           : !person ? "photo"
+           : !garment ? "outfit"
+           : "review";
+  const state = {
+    photo: person ? "Added" : "Needed",
+    outfit: garment ? garment.name : "Needed",
+    review: person && garment
+      ? (body.dataset.stage === "result" ? "Done" : "Ready")
+      : "Waiting",
+  };
+  for (const li of el.steps.querySelectorAll(".step")) {
+    const id = li.dataset.step;
+    const done = (id === "photo" && person) || (id === "outfit" && garment)
+              || (id === "review" && body.dataset.stage === "result");
+    li.dataset.state = done ? "done" : id === at ? "now" : "todo";
+    if (id === at) li.setAttribute("aria-current", "step");
+    else li.removeAttribute("aria-current");
+    li.querySelector(".step-state").textContent = state[id];
+  }
 }
 
 async function run() {
@@ -327,15 +454,27 @@ el.capture.addEventListener("click", () => {
   stopCamera();
 });
 el.retake.addEventListener("click", () => { dropPhoto(); });
+// Refusals that say which rule was broken. "That did not work" sends somebody
+// back to the same file; naming HEIC, or the size, tells them what to do next.
+const TOO_BIG = 15 * 1024 * 1024;   // the server caps a whole job at 24MB of JSON
+
 el.upload.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   e.target.value = "";
   if (!file) return;
+  if (/\.hei[cf]$/i.test(file.name) || /image\/hei[cf]/i.test(file.type)) {
+    return say("That is a HEIC photo, which this browser cannot open. Export it as JPEG and try again.",
+               "warn", `HEIC refused before decoding: ${file.name}`);
+  }
+  if (file.size > TOO_BIG) {
+    return say(`That photo is ${Math.round(file.size / 1024 / 1024)}MB, which is too big to send. Around 15MB is the limit.`,
+               "warn", `${file.size} bytes > ${TOO_BIG}`);
+  }
   let bmp;
   try {
     bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
-    return say("That file isn't a picture we can read. A JPEG works best.", "warn", "createImageBitmap threw - likely HEIC");
+    return say("That file isn't a picture we can read. A JPEG, PNG or WebP works.", "warn", "createImageBitmap threw");
   }
   stopCamera();
   keepPhoto(toDataUrl(bmp, bmp.width, bmp.height, false));

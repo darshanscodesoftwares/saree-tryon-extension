@@ -430,7 +430,17 @@ string, so a headless run can read the result without a driver library.
   browser.
 - `test/kiosk-shelf.html` drives the real kiosk page in an iframe against the
   real server: that a garment added in the panel reaches the screen, that the
-  shelf is grouped, and that the tiles are buttons that report `aria-pressed`.
+  kinds are tabs showing one rack at a time, and that the tiles are buttons
+  that report `aria-pressed`.
+- `test/workflow-layout.html` checks the thing the redesign is FOR: that the
+  whole workflow fits a laptop without the page moving. 1366x768 and 1440x900,
+  measured as `scrollHeight` against `clientHeight`, which is true or false
+  rather than a matter of taste. It also checks what makes that possible and
+  would silently undo it - that the kinds are tabs rather than stacked
+  headings, that the rack is one row scrolling sideways, that the dock makes
+  room rather than covering the shelf, and that nothing sticks out sideways on
+  a phone. Tiles have a minimum width too, because "it fits" is easy if
+  everything is shrunk until it cannot be read.
 - `test/result-dock.html` drives the same page at 360px, 390px and 1200px with
   the result on screen. Two things there break silently and look fine in a
   screenshot taken at one width. The dock's controls fit on one line only if

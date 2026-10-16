@@ -27,6 +27,29 @@
 
 <header id="bar">
   <h1>See yourself in it</h1>
+
+  <!-- Where you are, and what each step still wants. Two numbered boxes with
+       no status told a first-time customer nothing: this says which step is
+       live, which is done, and what is missing from it. aria-current carries
+       the same fact for anyone not looking at the colour. -->
+  <ol id="steps" class="steps" aria-label="Your progress">
+    <li class="step" data-step="photo">
+      <span class="dot" aria-hidden="true">1</span>
+      <span class="step-name">Your photo</span>
+      <span class="step-state"></span>
+    </li>
+    <li class="step" data-step="outfit">
+      <span class="dot" aria-hidden="true">2</span>
+      <span class="step-name">Choose outfit</span>
+      <span class="step-state"></span>
+    </li>
+    <li class="step" data-step="review">
+      <span class="dot" aria-hidden="true">3</span>
+      <span class="step-name">Try it on</span>
+      <span class="step-state"></span>
+    </li>
+  </ol>
+
   <p id="status" class="status" role="status" aria-live="polite"></p>
   <button id="staff" class="staff" aria-label="Technical details, for staff">?</button>
 </header>
@@ -44,13 +67,19 @@
         <circle cx="20" cy="11" r="8"/>
         <path d="M20 22c-7 0-12 4-12 10v14h5l2 24h10l2-24h5V32c0-6-5-10-12-10z"/>
       </svg>
-      <p class="chooser-copy">A full-length picture works best</p>
+      <p class="chooser-copy">A clear, full-length photo with your whole body showing</p>
       <div class="chooser-acts">
-        <button id="start" class="btn">Take my photo</button>
-        <label class="btn" id="uploadlabel">Use a photo I have
-          <input type="file" id="upload" accept="image/*" hidden>
+        <label class="btn primary" id="uploadlabel">Upload a photo
+          <input type="file" id="upload" accept="image/jpeg,image/png,image/webp" hidden>
         </label>
+        <button id="start" class="btn">Take a photo</button>
       </div>
+      <!-- The real limits, not reassuring vagueness: the panel decodes with
+           createImageBitmap, which has no HEIC, and a job is capped at 24MB of
+           JSON by the server. A customer who knows this before choosing does
+           not meet a refusal after it. -->
+      <p class="chooser-small">JPEG, PNG or WebP, up to about 15&nbsp;MB. An iPhone photo
+      may be HEIC &mdash; export it as JPEG first.</p>
     </div>
 
     <div class="frame" id="frame">
@@ -66,8 +95,29 @@
   </section>
 
   <section id="shelf">
-    <h2 class="step-h"><span class="num">2</span> Choose what to try on</h2>
-    <div id="garments"></div>
+    <h2 class="step-h" id="shelf-h"><span class="num">2</span> Choose what to try on</h2>
+
+    <!-- Kinds as tabs, not as stacked headings. Stacked, every kind added to
+         the shelf made the page taller and pushed the next step further out of
+         sight; as tabs the page is the same height with three kinds as with
+         one, and a customer looking for a shirt is not scrolling past sarees. -->
+    <div id="tabs" class="tabs" role="tablist" aria-labelledby="shelf-h"></div>
+
+    <div id="garments" class="rack-wrap"></div>
+
+    <!-- The rack scrolls sideways rather than wrapping downwards, so more
+         garments never means a taller page. The arrows exist because a
+         horizontal scroller with no visible control is invisible on a desktop
+         with no touch and no trackpad gesture. -->
+    <div class="pager">
+      <button id="prevpage" class="iconbtn" aria-label="Show earlier garments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <p id="pagecount" class="pagecount" role="status" aria-live="polite"></p>
+      <button id="nextpage" class="iconbtn" aria-label="Show more garments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
   </section>
 
   <section id="resultpane">

@@ -104,6 +104,32 @@ h1, h2, .kicker { font-family: "Iowan Old Style", "Palatino Linotype", Palatino,
   backdrop-filter: blur(12px);
   position: sticky; top: 0; z-index: 20;
 }
+/* WHERE YOU ARE, AND WHAT EACH STEP WANTS.
+   Hidden on a phone, where the bar has no room and the workflow is already
+   one task at a time, and on the kiosk, where the screen is the instruction. */
+.steps { display: none; list-style: none; margin: 0 auto; padding: 0; gap: var(--s-2); }
+.step {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px var(--s-3) 5px 5px; border-radius: 999px;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.step .dot {
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; font-family: system-ui, sans-serif;
+  background: var(--surface-2); color: var(--muted);
+}
+.step-name { font-size: 13px; font-weight: 600; color: var(--muted); }
+/* The status in words, so a step never depends on a colour to say it. */
+.step-state { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.step-state::before { content: "\00b7 "; }
+.step[data-state="now"] { border-color: var(--accent); background: var(--surface); }
+.step[data-state="now"] .dot { background: var(--accent); color: var(--accent-ink); }
+.step[data-state="now"] .step-name { color: var(--text); }
+.step[data-state="done"] .dot { background: var(--ok); color: var(--accent-ink); font-size: 0; }
+.step[data-state="done"] .dot::after { content: "\2713"; font-size: 13px; }
+.step[data-state="done"] .step-name { color: var(--text); }
+
 #bar h1 {
   font-size: 19px; font-weight: 600; letter-spacing: -.01em;
   white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis;
@@ -160,6 +186,10 @@ body[data-photo="still"] #you .step-h .num { background: var(--accent); border-c
 }
 .chooser .glyph { width: 30px; height: 54px; fill: none; stroke: var(--muted); stroke-width: 2.4; opacity: .8; }
 .chooser-copy { color: var(--muted); font-size: 14px; }
+.chooser-small {
+  font-size: 11.5px; line-height: 1.5; color: var(--muted);
+  max-width: 36ch; margin-top: var(--s-2); text-align: center;
+}
 .chooser-acts { display: flex; gap: var(--s-2); flex-wrap: wrap; justify-content: center; width: 100%; }
 /* Share the width rather than each demanding its label's full length, which
    is what pushed them off the side of a phone. */
@@ -198,17 +228,56 @@ body[data-photo="still"] #cancelcam { display: none; }
 body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, rgba(0,0,0,.75)); }
 
 /* ============================================================== shelf ===*/
-#garments { container-type: inline-size; display: flex; flex-direction: column; gap: var(--s-4); }
-.group {
-  font-size: 12px; text-transform: uppercase; letter-spacing: .12em;
-  color: var(--gold); font-weight: 700; font-family: system-ui, sans-serif;
-  margin-bottom: var(--s-2);
-  position: sticky; top: 0; z-index: 5;
-  background: linear-gradient(var(--bg) 70%, transparent);
-  padding: 4px 0;
+#garments { container-type: inline-size; min-height: 0; }
+
+/* KINDS AS TABS.
+   Stacked under headings, every kind the shop added made the page taller and
+   pushed the next step further out of sight. As tabs the shelf is the same
+   height with three kinds as with one. */
+.tabs { display: flex; gap: var(--s-2); margin-bottom: var(--s-3); flex-wrap: wrap; }
+.tabs[hidden] { display: none; }
+.tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 40px; padding: 0 var(--s-3);
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--muted);
+  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
 }
-/* Gap >= 24px because each tile carries a 5px inset and a 4px ring outside it. */
-.rack { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb), 1fr)); gap: var(--s-4); }
+/* Selected is weight and fill, not only colour - and aria-selected carries it
+   for anyone who cannot see either. */
+.tab[aria-selected="true"] {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink); font-weight: 650;
+}
+.tab-n {
+  font-size: 11px; font-variant-numeric: tabular-nums;
+  padding: 1px 6px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted);
+}
+.tab[aria-selected="true"] .tab-n { background: rgba(255,255,255,.22); color: var(--accent-ink); }
+
+/* ONE ROW, SCROLLING SIDEWAYS.
+   More garments must never mean a taller page - that is the whole reason the
+   workflow would not fit a laptop. Padding, not margin, because each tile
+   carries a 4px selection ring outside its own box and a scroll container
+   clips it. */
+.rack {
+  display: grid; grid-auto-flow: column; grid-auto-columns: var(--thumb);
+  gap: var(--s-3); padding: 5px; margin: -5px;
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity; scrollbar-width: thin;
+}
+.rack .tile { scroll-snap-align: start; }
+
+.pager { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
+.pager .iconbtn { width: 38px; height: 38px; }
+.pager .iconbtn svg { width: 18px; height: 18px; }
+.pager .iconbtn:disabled { opacity: .4; cursor: default; }
+.pager .iconbtn[hidden] { display: none; }
+.pagecount {
+  font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .09em;
+  margin-left: auto;
+}
 
 /* A real button: focusable, keyboard-operable, announced as pressed. It was a
    <figure> with a click listener, which no keyboard or screen reader could use. */
@@ -244,13 +313,12 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
   background: var(--accent); color: var(--accent-ink); font-size: 18px; font-weight: 700;
   box-shadow: 0 0 0 3px var(--bg);
 }
+/* Narrow: the rack still runs sideways - a phone browses a rail of clothes
+   far more naturally than it scrolls a column of them - the tiles just get
+   narrower, and the name stops reserving a two-line box it rarely fills. */
 @container (max-width: 380px) {
-  .rack { grid-template-columns: 1fr; gap: var(--s-2); }
-  .tile { display: grid; grid-template-columns: 70px 1fr; align-items: center; }
-  .tile img { aspect-ratio: 2 / 3; }
-  /* A white card with a short name in it looks emptier than a dark one did,
-     so the row is only as tall as the thumbnail needs. */
-  .tile .name { min-height: 0; padding-block: var(--s-2); }
+  .rack { grid-auto-columns: 132px; gap: var(--s-2); }
+  .tile .name { min-height: 0; font-size: 12px; }
 }
 
 /* ============================================================ results ===*/
@@ -486,7 +554,10 @@ body[data-stage="result"]  #resultacts { display: flex; }
 
 /* ============================================================ desktop ===*/
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: 180px; --dock-h: 84px; }
+  /* Bigger tiles, not more of them. There is room on a laptop for the garment
+     to be looked AT rather than identified, and a rack that scrolls sideways
+     spends spare width on the picture instead of on a fourth column. */
+  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: 224px; --dock-h: 84px; }
   body { height: 100dvh; overflow: hidden;
          grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h); }
   #work {
@@ -495,8 +566,28 @@ body[data-stage="result"]  #resultacts { display: flex; }
     grid-template-areas: "you shelf";
     overflow: hidden; padding-bottom: var(--s-4);
   }
-  #you { grid-area: you; position: sticky; top: 0; }
-  #shelf { grid-area: shelf; overflow-y: auto; min-height: 0; max-height: 100%; overscroll-behavior: contain; padding-right: var(--s-2); }
+  /* The stepper only earns its room where there is room: a laptop bar has it,
+     a phone bar does not and the workflow there is one task at a time anyway. */
+  .steps { display: flex; }
+  #you { grid-area: you; min-height: 0; display: flex; flex-direction: column; }
+  /* No vertical scroll of its own any more. The rack runs sideways, so the
+     shelf is the same height whether the shop stocks three garments or sixty -
+     which is what makes the whole workflow fit a 768px laptop without the page
+     moving. min-height:0 because a grid child will not shrink below content
+     without it, and that alone used to push the dock off the bottom. */
+  #shelf { grid-area: shelf; min-height: 0; display: flex; flex-direction: column; }
+  /* The rack takes the room between the tabs and the arrows and centres
+     itself in it, so a short rack does not leave a hole under the tabs with
+     the controls stranded at the bottom of the screen. */
+  #shelf #garments { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; }
+  #shelf .rack { width: 100%; }
+  #shelf .pager { margin-top: 0; padding-top: var(--s-2); }
+  /* The left column has the same room and should use it: the chooser grew a
+     dashed box the height of its text and left a third of the panel empty. */
+  /* Centred in the leftover room rather than stretched to fill it: a dashed
+     box blown up to 500px tall is a bigger hole than the one it was covering. */
+  #you .chooser { margin-block: auto; }
+  #you .frame { flex: 0 1 auto; margin-block: auto; }
   #resultpane { grid-area: 1 / 1 / 2 / 3; overflow-y: auto; max-height: 100%; }
   .results { grid-template-columns: 1fr 1fr; align-items: start; }
   .shot.before { display: block; }
@@ -504,8 +595,8 @@ body[data-stage="result"]  #resultacts { display: flex; }
   #act { justify-content: flex-end; }
   #act #chips { margin-right: auto; }
   .btn.grow { flex: none; min-width: 260px; }
-  .frame { max-height: 56dvh; aspect-ratio: 3/4; margin-inline: auto; width: auto; }
-  .frame { aspect-ratio: 3 / 4; }
+  .frame { max-height: min(56dvh, 420px); aspect-ratio: 3/4; margin-inline: auto; width: auto; }
+  .chooser { flex: 1 1 auto; min-height: 0; justify-content: center; }
 }
 
 /* A dock this narrow needs the shorter label. */

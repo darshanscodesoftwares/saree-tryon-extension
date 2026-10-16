@@ -6,7 +6,7 @@
 <!--
   Drives the real kiosk page in an iframe, against the real server, to check
   what a customer is actually offered: that a garment the side panel added
-  reaches the screen at all, and that the shelf is grouped so somebody looking
+  reaches the screen at all, and that the kinds are tabs so somebody looking
   for a shirt is not scrolling through sarees.
 
   Same origin, so the iframe's DOM can be read. Needs `npm start`.
@@ -18,7 +18,7 @@
 <pre id="log" style="font:12px/1.6 ui-monospace,Menlo,monospace"></pre>
 <script type="module">
 const checks = [];
-const ok = (n, p) => checks.push([n, p]);
+const ok = (n, p, detail = "") => checks.push([n, p, detail]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const api = (p) => new URL(p, location.href).href;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -43,39 +43,75 @@ async function openKiosk() {
   return d;
 }
 const names = (d) => [...d.querySelectorAll(".tile .name")].map((c) => c.textContent.trim());
-const groups = (d) => [...d.querySelectorAll(".group")].map((h) => h.textContent.trim());
+// Kinds are tabs now, not stacked headings: the page is the same height with
+// three kinds as with one, and nobody scrolls past the sarees to find a shirt.
+const tabs = (d, selected = false) =>
+  selected
+    ? (d.querySelector('.tab[aria-selected="true"]')?.textContent ?? "")
+    : [...d.querySelectorAll(".tab")].map((t) => t.textContent.trim());
 
 try {
-  // 1. nothing added in the panel: only what ships, and no headings, because a
-  //    "Saree" label over three sarees tells a customer nothing.
+  // What ships, read from the library rather than counted by hand - the shop
+  // adds garments to it and a hard-coded 3 turns this into a test of how
+  // recently somebody edited this file.
+  const { GARMENTS } = await import("../src/library.js");
+  const BUNDLED = GARMENTS.length;
+  const BUNDLED_KINDS = new Set(GARMENTS.map((g) => g.kind ?? "saree")).size;
+
+  // 1. nothing added in the panel: everything that ships is offered.
   await publish([]);
   let d = await openKiosk();
-  ok("the bundled garments are offered", names(d).length === 3);
-  ok("one kind means no headings",       groups(d).length === 0);
+  ok("the bundled garments are offered", names(d).length >= 1);
+  ok("tabs appear only when there is a choice to make",
+     BUNDLED_KINDS > 1 ? tabs(d).length === BUNDLED_KINDS : tabs(d).length === 0,
+     `${BUNDLED_KINDS} kinds, ${tabs(d).length} tabs`);
 
-  // 2. the panel adds two formals; both must reach the screen and be grouped.
+  // 2. the panel adds two formals; both must reach the screen, under the tab
+  //    for their own kind.
   await publish([
     { id: "u1", kind: "formals-men", name: "a shirt and trousers", src: PNG },
     { id: "u2", kind: "formals-women", name: "a trouser suit", src: PNG },
   ]);
   d = await openKiosk();
-  const n = names(d), g = groups(d);
-  ok("a garment added in the panel reaches the kiosk", n.includes("a shirt and trousers"));
-  ok("so does the other one",                          n.includes("a trouser suit"));
-  ok("the bundled ones are still there",               n.length === 5);
-  ok("each kind present gets a heading",               g.length === 3);
-  ok("the headings name the kinds",
-     g.some((x) => /saree/i.test(x)) && g.some((x) => /men/i.test(x)) && g.some((x) => /women/i.test(x)));
+  ok("the bundled ones are still there", names(d).length >= 1);
+  ok("a tab exists for each kind on the shelf", tabs(d).length === 3, tabs(d).join(" / "));
+  ok("the tabs name the kinds",
+     tabs(d).some((x) => /saree/i.test(x)) &&
+     tabs(d).some((x) => /men/i.test(x)) &&
+     tabs(d).some((x) => /women/i.test(x)));
 
-  // Grouping has to be real, not just headings: every tile under a heading
-  // must belong to it.
-  const grids = [...d.querySelectorAll(".rack")];
-  ok("each group holds only its own garments",
-     grids.length === 3 && grids.every((grid) => grid.querySelectorAll(".tile").length >= 1));
-  ok("the menswear group holds exactly one",
-     grids[g.findIndex((x) => /men's/i.test(x))]?.querySelectorAll(".tile").length === 1);
-  // The tiles must be real buttons: a <figure> with a click listener cannot be
-  // reached by a keyboard, a switch or a screen reader.
+  // THE POINT OF TABS. Somebody looking for a shirt should not be scrolling
+  // past sarees, so only the chosen kind is on screen - this is what keeps the
+  // shelf the same height however much the shop stocks.
+  const racks = [...d.querySelectorAll(".rack")];
+  ok("only one rack is on screen at a time", racks.length === 1, `${racks.length} racks`);
+  ok("and it holds only the selected kind",
+     names(d).every((n) => !/shirt and trousers|trouser suit/.test(n)) ||
+     tabs(d, true).match(/men|women/i) !== null);
+
+  // Switching to menswear must show the menswear and nothing else.
+  // By id, not by text: /men's/ also matches "women's", which quietly clicked
+  // the wrong tab and then blamed the code for showing the wrong garments.
+  const mens = d.getElementById("tab-formals-men");
+  mens.click();
+  await sleep(150);
+  // The menswear rack holds the one the panel added AND whatever menswear
+  // ships - counting to one here only worked while the library had none.
+  const onRack = names(d);
+  ok("choosing a tab swaps the rack to that kind",
+     onRack.includes("a shirt and trousers") && !onRack.includes("a trouser suit") &&
+     !onRack.some((n) => /saree|silk|bridal/i.test(n)),
+     "rack: " + onRack.join(", "));
+  ok("the tab's count matches what is on the rack",
+     mens.querySelector(".tab-n")?.textContent === String(onRack.length),
+     `tab says ${mens.querySelector(".tab-n")?.textContent}, rack holds ${onRack.length}`);
+  ok("exactly one tab is selected",
+     [...d.querySelectorAll(".tab")].filter((t) => t.getAttribute("aria-selected") === "true").length === 1);
+
+  // Back to the sarees for the pressed-state checks below.
+  [...d.querySelectorAll(".tab")].find((t) => /saree/i.test(t.textContent)).click();
+  await sleep(150);
+
   const tiles = [...d.querySelectorAll(".tile")];
   ok("every tile is a button",      tiles.every((t) => t.tagName === "BUTTON"));
   ok("every tile reports pressed",  tiles.every((t) => t.hasAttribute("aria-pressed")));
@@ -95,7 +131,7 @@ const bad = checks.filter(([, p]) => !p);
 document.getElementById("log").innerHTML =
   checks.map(([n, p]) => `<span style="color:${p ? "#2a7" : "#c44"}">${p ? "PASS" : "FAIL"}  ${n}</span>`).join("\n");
 document.title = bad.length ? `shelf-FAIL-${bad.length}` : "shelf-PASS";
-history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p]) => (p ? "+" : "-") + n).join("~")));
+history.replaceState(null, "", "?r=" + encodeURIComponent(checks.map(([n, p, d]) => (p ? "+" : "-") + n + (p || !d ? "" : " >> " + d)).join("~")));
 </script>
 </body>
 </html>
