@@ -227,52 +227,6 @@ body[data-photo="still"] #capture,
 body[data-photo="still"] #cancelcam { display: none; }
 body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, rgba(0,0,0,.75)); }
 
-/* ============================================================== cards ===
-   Four panels rather than two columns of loose sections: a bordered card with
-   its own heading row says where one job ends and the next begins, which is
-   most of what "what do I do first" was asking for. */
-#you, #shelf, #chosen, #resultpane {
-  background: var(--surface); border: 1px solid var(--hair);
-  border-radius: var(--r); padding: var(--s-3);
-  min-width: 0;
-}
-.card-head {
-  display: flex; align-items: baseline; gap: var(--s-2);
-  margin-bottom: var(--s-3);
-}
-.card-head .step-h, .card-h { margin: 0; }
-.card-h { font-size: 16px; font-family: "Iowan Old Style", Palatino, Georgia, serif; font-weight: 600; }
-/* The live count, in the corner the reference puts it: "1 selected" beside
-   the heading rather than hidden in a chip at the bottom of the screen. */
-.card-note {
-  margin-left: auto; font-size: 12.5px; color: var(--accent); font-weight: 600;
-  white-space: nowrap;
-}
-.card-note:empty { display: none; }
-
-/* -------------------------------------------------------- chosen garment */
-/* Desktop only. On a phone there is no room for a panel restating what the
-   chips already show, and on the kiosk the dock is within arm's reach while
-   this would not be. */
-#chosen { display: none; }
-.chosenbox { min-height: 0; }
-.chosen-empty { color: var(--muted); font-size: 13px; margin: 0; }
-.chosen-one {
-  position: relative; margin: 0; display: grid;
-  grid-template-columns: 72px minmax(0, 1fr); gap: var(--s-3); align-items: center;
-}
-.chosen-one img {
-  width: 72px; aspect-ratio: 2/3; object-fit: cover;
-  border-radius: var(--r-sm); background: var(--surface-2);
-}
-.chosen-one figcaption { font-size: 14px; font-weight: 600; line-height: 1.3; min-width: 0; }
-.chosen-one .sub { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 2px; }
-.chosen-one .drop { width: 34px; height: 34px; margin-left: auto; }
-.chosen-one .drop svg { width: 16px; height: 16px; }
-
-.resultempty { color: var(--muted); font-size: 13px; margin: 0; }
-.resultempty[hidden] { display: none; }
-
 /* ============================================================== shelf ===*/
 #garments { container-type: inline-size; min-height: 0; }
 
@@ -344,15 +298,14 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 }
 .tile img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: var(--surface-2); border-radius: 11px; }
 .tile .name {
-  display: block; padding: var(--s-2); font-size: 13px; line-height: 1.35; color: var(--text);
-  font-weight: 600; min-height: calc(var(--tap) - 8px);
+  display: block; padding: var(--s-2); font-size: 13px; line-height: 1.35; color: var(--muted);
+  min-height: calc(var(--tap) - 8px);
 }
-.tile .name .sub { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
 .tile:active { transform: scale(.97); }
 /* Selection is shown three ways - border weight, a tick, and the name turning
    solid - because colour alone is not an indicator anyone can rely on. */
 .tile[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--accent); }
-.tile[aria-pressed="true"] .name { color: var(--text); font-weight: 700; }
+.tile[aria-pressed="true"] .name { color: var(--text); font-weight: 600; }
 .tile[aria-pressed="true"]::after {
   content: "✓"; position: absolute; top: 12px; right: 12px;
   width: 32px; height: 32px; border-radius: 50%;
@@ -604,13 +557,9 @@ body[data-stage="result"]  #resultacts { display: flex; }
   /* Bigger tiles, not more of them. There is room on a laptop for the garment
      to be looked AT rather than identified, and a rack that scrolls sideways
      spends spare width on the picture instead of on a fourth column. */
-  :root { --gutter: clamp(24px, 4vw, 64px); --dock-h: 84px; }
-  /* Two rows, not three: the dock is inside the Result card here, so a row
-     reserved for it at the bottom is 84px of nothing taken from the shelf -
-     which was being cut off mid-garment to pay for it. */
+  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: 224px; --dock-h: 84px; }
   body { height: 100dvh; overflow: hidden;
-         grid-template-areas: "bar" "work";
-         grid-template-rows: var(--bar-h) minmax(0,1fr); }
+         grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h); }
   #work {
     display: grid; gap: var(--s-5); align-items: start;
     grid-template-columns: minmax(320px, 32vw) minmax(0, 1fr);
@@ -620,28 +569,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
   /* The stepper only earns its room where there is room: a laptop bar has it,
      a phone bar does not and the workflow there is one task at a time anyway. */
   .steps { display: flex; }
-  /* FOUR CARDS. Photo over garments on the left, what is chosen over the
-     result on the right - so picking and seeing the pick are side by side,
-     and the result has a place to live before there is one. */
-  #work {
-    grid-template-columns: minmax(360px, 38%) minmax(0, 1fr);
-    grid-template-areas: "you chosen" "shelf result";
-    /* The photo card takes what it needs up to a share of the screen; the
-       shelf takes the rest. Left to `auto` the photo card grew and the shelf
-       was cut off mid-garment. */
-    grid-template-rows: minmax(0, auto) minmax(0, 1fr);
-    gap: var(--s-3);
-    /* Cards fill their row. Left to `start` they were content-height, which
-       left the Result card a 100px strip with a page of empty paper under it
-       and nowhere for the picture to go. */
-    align-items: stretch;
-  }
-  /* Except this one: it holds one thumbnail, and stretched to match the
-     photo card it becomes the empty panel the whole redesign was avoiding. */
-  #chosen { grid-area: chosen; display: block; align-self: start; }
-  #resultpane { grid-area: result; position: relative; overflow: hidden;
-                display: flex; flex-direction: column; min-height: 0; }
-  #you { grid-area: you; min-height: 0; max-height: 38dvh; display: flex; flex-direction: column; }
+  #you { grid-area: you; min-height: 0; display: flex; flex-direction: column; }
   /* No vertical scroll of its own any more. The rack runs sideways, so the
      shelf is the same height whether the shop stocks three garments or sixty -
      which is what makes the whole workflow fit a 768px laptop without the page
@@ -660,58 +588,12 @@ body[data-stage="result"]  #resultacts { display: flex; }
      box blown up to 500px tall is a bigger hole than the one it was covering. */
   #you .chooser { margin-block: auto; }
   #you .frame { flex: 0 1 auto; margin-block: auto; }
+  #resultpane { grid-area: 1 / 1 / 2 / 3; overflow-y: auto; max-height: 100%; }
   .results { grid-template-columns: 1fr 1fr; align-items: start; }
   .shot.before { display: block; }
   .shot img { max-height: calc(100dvh - var(--bar-h) - var(--dock-h) - 90px); }
-  /* The primary action sits in the Result card's own corner rather than in a
-     bar across the bottom. One button, moved - not a second copy to keep in
-     step with the first. The chips go: the Chosen card says it better. */
-  #act {
-    position: absolute; top: var(--s-3); right: var(--s-3); left: auto; bottom: auto;
-    width: auto; min-height: 0; border: 0; background: none; backdrop-filter: none;
-    padding: 0; justify-content: flex-end; z-index: 3;
-  }
-  #act #chips { display: none; }
-  /* All four cards stay on screen whatever the stage. The stage rules suit a
-     phone, where one task at a time is right; here hiding the shelf the
-     moment a picture arrives takes away the next thing a customer wants. */
-  body[data-stage="choose"] #resultpane,
-  body[data-stage="result"] #you,
-  body[data-stage="result"] #shelf { display: flex; }
-  body[data-stage="result"] #you, body[data-stage="result"] #shelf { flex-direction: column; }
-  body[data-stage="result"] #chosen { display: block; }
-  /* The result fills its card rather than sitting in a column with the before
-     shot; comparing is what Hold-to-compare is for. */
-  #resultpane .results { grid-template-columns: minmax(0,1fr); flex: 1 1 auto; min-height: 0; }
-  #resultpane .shot.before { display: none; }
-  #resultpane .shot.after { min-height: 0; display: flex; flex-direction: column; }
-  #resultpane .shot img { max-height: none; height: 100%; min-height: 0; object-fit: contain; }
-  /* Room for the button sitting in the corner above it. */
-  #resultpane .card-head { padding-right: 190px; }
-  /* Nothing made yet: the card says so instead of showing a broken image and
-     a caption for a picture that does not exist. */
-  #resultpane .results { display: none; }
-  body[data-stage="result"] #resultpane .results { display: grid; }
-  body[data-stage="result"] #resultpane .resultempty { display: none; }
-
-  /* TILES SIZED BY THE ROOM, NOT BY A NUMBER.
-     A fixed tile width guesses at the height it will need and is wrong at
-     every viewport but the one it was picked on - the shelf was being cut off
-     mid-garment. The rack fills what is left, each tile is as tall as the
-     rack, and the 2:3 picture decides its own width from that. */
-  /* Scaled to the viewport's HEIGHT, because height is the axis that was
-     overflowing: a tile wide enough for a 1440x900 laptop is a tile too tall
-     for a 1366x768 one, and a fixed number is right on exactly one of them.
-     `auto` was worse - with overflow the tracks collapsed and fourteen
-     garments shared one row at 20px each. */
-  :root { --thumb: clamp(112px, 17vh, 200px); }
-  #shelf .rack { align-items: stretch; }
-  #shelf .tile { display: flex; flex-direction: column; min-width: 0; }
-  #shelf .tile .name { flex: none; min-height: 0; }
-  /* One row of tabs. Wrapped to two they ate the height the garments needed. */
-  #shelf .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  #shelf .tabs::-webkit-scrollbar { display: none; }
-  #shelf .tab { flex: none; }
+  #act { justify-content: flex-end; }
+  #act #chips { margin-right: auto; }
   .btn.grow { flex: none; min-width: 260px; }
   .frame { max-height: min(56dvh, 420px); aspect-ratio: 3/4; margin-inline: auto; width: auto; }
   .chooser { flex: 1 1 auto; min-height: 0; justify-content: center; }

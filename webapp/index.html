@@ -57,10 +57,7 @@
 <main id="work">
 
   <section id="you">
-    <div class="card-head">
-      <h2 class="step-h"><span class="num">1</span> Your photograph</h2>
-      <p id="photonote" class="card-note" role="status" aria-live="polite"></p>
-    </div>
+    <h2 class="step-h"><span class="num">1</span> Your photograph</h2>
 
     <!-- The empty state is a chooser, not a frame. A 3:4 black box reserved for
          something that does not exist yet was costing ~300px before anything
@@ -98,10 +95,7 @@
   </section>
 
   <section id="shelf">
-    <div class="card-head">
-      <h2 class="step-h" id="shelf-h"><span class="num">2</span> Choose what to try on</h2>
-      <p id="chosencount" class="card-note" role="status" aria-live="polite"></p>
-    </div>
+    <h2 class="step-h" id="shelf-h"><span class="num">2</span> Choose what to try on</h2>
 
     <!-- Kinds as tabs, not as stacked headings. Stacked, every kind added to
          the shelf made the page taller and pushed the next step further out of
@@ -126,24 +120,8 @@
     </div>
   </section>
 
-  <!-- What has been picked, kept where it can be seen while picking. The dock
-       chips did this before, but they are 56px circles at the bottom of the
-       screen: enough to notice a thing is chosen, not enough to see WHICH. -->
-  <section id="chosen">
-    <div class="card-head">
-      <h2 class="card-h">Chosen garment</h2>
-      <p id="chosennote" class="card-note"></p>
-    </div>
-    <div id="chosenbox" class="chosenbox"></div>
-  </section>
-
   <section id="resultpane">
-    <div class="card-head">
-      <h2 class="step-h"><span class="num">3</span> Result</h2>
-    </div>
-    <!-- Before anything has been made, the card says what it is waiting for
-         rather than sitting empty and looking broken. -->
-    <p id="resultempty" class="resultempty">Your try-on will appear here.</p>
+    <h2 class="step-h">Here you are</h2>
     <div class="results">
       <figure class="shot after">
         <!-- The wrapper shrink-wraps the picture. .shot img is width:auto, so
