@@ -370,7 +370,8 @@ is live.
 Set `CONTROL_KEY` to stop anyone who can reach the server from flipping it;
 unset, the server says so at startup. Set `IMAGE_MODEL`, `IMAGE_QUALITY` and
 `IMAGE_SIZE` to pick what the API is asked for - the defaults are
-`gpt-image-2.5-sunburst`, `high`, `1024x1536`.
+`gpt-image-2.5-sunburst`, `low`, `1024x1536` - low while the route is being
+proved, since the account's balance is its only cap.
 
 **The request shape in `src/image-api.mjs` was written from documentation, not
 from something that ran.** With a bad key it is refused with a 401, which

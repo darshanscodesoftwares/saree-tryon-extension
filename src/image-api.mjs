@@ -17,7 +17,12 @@ const API = "https://api.openai.com/v1/images/edits";
 // tuned for editing precision, and a drape is nothing but precision. Worth
 // timing both once there is a key - a customer is standing there.
 export const MODEL = process.env.IMAGE_MODEL ?? "gpt-image-2.5-sunburst";
-export const QUALITY = process.env.IMAGE_QUALITY ?? "high";
+// low until told otherwise. The balance is the only cap on this account - auto
+// reload is off deliberately - and at 158 output tokens for a portrait, low
+// is about a sixth of high. Enough to prove the route works and to judge
+// whether the drape is right at all, which is what is being asked of it now.
+// Raise it with IMAGE_QUALITY, or per call with --quality.
+export const QUALITY = process.env.IMAGE_QUALITY ?? "low";
 export const SIZE = process.env.IMAGE_SIZE ?? "1024x1536";   // a person is portrait
 export const RUPEES = Number(process.env.INR_PER_USD ?? 96);
 
