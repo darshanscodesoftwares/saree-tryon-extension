@@ -9,7 +9,7 @@
 // tryon-client.js for a picture and shows what comes back.
 
 import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
-import { available, garments, generate, addGarment } from "./tryon-client.js";
+import { available, garments, generate, addGarment, dropGarment } from "./tryon-client.js";
 import { progressAt } from "./progress.js";
 
 const $ = (id) => document.getElementById(id);
@@ -22,6 +22,7 @@ const el = {
   garmentsBox: $("garments"), go: $("go"),
   tabs: $("tabs"), pagecount: $("pagecount"),
   addfile: $("addfile"), addlabel: $("addlabel"), addword: $("addword"),
+  confirm: $("confirm"), confirmWhat: $("confirm-what"),
   prevpage: $("prevpage"), nextpage: $("nextpage"),
   steps: $("steps"),
   chipYou: $("chip-you"), chipYouImg: $("chip-you-img"),
@@ -198,7 +199,26 @@ function renderGarments() {
     // solid - so there is nothing to add here.
     b.append(img, name);
     b.addEventListener("click", () => choose(g));
-    rack.appendChild(b);
+
+    // Only what a screen added can be removed from a screen. The bundled
+    // shelf is in the repository, and a cross on it would promise something
+    // this button cannot do.
+    if (!String(g.id).startsWith("screen-")) {
+      rack.appendChild(b);
+      continue;
+    }
+    // A button cannot contain a button, so the cross is a sibling laid over
+    // the tile rather than a child of it.
+    const wrap = document.createElement("div");
+    wrap.className = "tile-wrap";
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "iconbtn drop";
+    x.setAttribute("aria-label", `Remove ${g.name} from the shelf`);
+    x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
+    x.addEventListener("click", (e) => { e.stopPropagation(); askToRemove(g); });
+    wrap.append(b, x);
+    rack.appendChild(wrap);
   }
 
   el.garmentsBox.replaceChildren(rack);
@@ -536,6 +556,27 @@ async function save() {
   }
 }
 el.save.addEventListener("click", save);
+
+// Destroying something is worth one question first, and the question has to
+// name the thing - "are you sure?" is not an answerable question when there
+// are nine sarees on the rack.
+async function askToRemove(g) {
+  el.confirmWhat.textContent = g.name;
+  el.confirm.showModal();
+  const how = await new Promise((done) =>
+    el.confirm.addEventListener("close", () => done(el.confirm.returnValue), { once: true }));
+  if (how !== "go") return;
+  try {
+    await dropGarment(g.id);
+    if (garment?.id === g.id) garment = null;
+    shelf = await garments();
+    renderGarments();
+    refresh();
+    say(`Removed ${g.name}.`, "ready");
+  } catch (err) {
+    say(`Could not remove it: ${err.message}`, "warn");
+  }
+}
 
 // ADDING A GARMENT FROM HERE.
 //

@@ -350,7 +350,8 @@ restarts, redeploys and a sleeping free instance, and needs no extension.
 
 **The temporary one** is the Add button on the screen itself. It adds to
 whichever category tab is open - which is what gets the garment the right
-instruction - and is the only way to add one once the API route is serving,
+instruction - carries a cross to take it off again, and is the only way to add
+one once the API route is serving,
 because then there is no extension running at all. It lives in the server's
 memory and goes when the process does, which on Render's free plan is after
 fifteen idle minutes. The screen says so when it adds one.

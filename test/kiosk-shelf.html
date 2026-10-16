@@ -112,6 +112,51 @@ try {
   [...d.querySelectorAll(".tab")].find((t) => /saree/i.test(t.textContent)).click();
   await sleep(150);
 
+  // REMOVING, AND THE QUESTION BEFORE IT.
+  //
+  // Only garments a screen added carry a cross: the bundled shelf is in the
+  // repository and a cross on it would promise something this cannot do.
+  {
+    const made = await (await fetch(api("../api/garments/add"), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "saree", name: "Addedfromascreen", dataUrl: PNG }),
+    })).json();
+    d = await openKiosk();
+
+    const wrapOf = (name) => [...d.querySelectorAll(".tile-wrap")]
+      .find((w) => (w.querySelector(".name")?.firstChild?.textContent ?? "").trim() === name);
+
+    ok("a screen-added garment carries a remove cross", Boolean(wrapOf("Addedfromascreen")));
+    ok("the bundled ones do not", d.querySelectorAll(".tile-wrap").length === 1,
+       `${d.querySelectorAll(".tile-wrap").length} removable`);
+    ok("the cross says what it removes",
+       /Addedfromascreen/.test(wrapOf("Addedfromascreen")?.querySelector(".drop")?.getAttribute("aria-label") ?? ""));
+
+    // Pressing it must ASK, not act.
+    const dialog = d.getElementById("confirm");
+    ok("nothing is open to start", !dialog.open);
+    wrapOf("Addedfromascreen").querySelector(".drop").click();
+    await sleep(150);
+    ok("the cross asks first", dialog.open === true);
+    ok("and names the garment", d.getElementById("confirm-what").textContent === "Addedfromascreen");
+
+    // Saying no leaves it alone. This is the one worth checking: a confirm
+    // that deletes either way is worse than no confirm at all.
+    d.getElementById("confirm-no").click();
+    await sleep(300);
+    ok("saying no keeps it", Boolean(wrapOf("Addedfromascreen")));
+    ok("and closes the question", !dialog.open);
+
+    // Saying yes removes it, from the server as well as the screen.
+    wrapOf("Addedfromascreen").querySelector(".drop").click();
+    await sleep(150);
+    d.getElementById("confirm-yes").click();
+    for (let i = 0; i < 60 && wrapOf("Addedfromascreen"); i++) await sleep(50);
+    ok("saying yes removes it from the screen", !wrapOf("Addedfromascreen"));
+    const left = (await (await fetch(api("../api/garments"))).json()).garments;
+    ok("and from the server", !left.some((g) => g.id === made.id));
+  }
+
   const tiles = [...d.querySelectorAll(".tile")];
   ok("every tile is a button",      tiles.every((t) => t.tagName === "BUTTON"));
   ok("every tile reports pressed",  tiles.every((t) => t.hasAttribute("aria-pressed")));

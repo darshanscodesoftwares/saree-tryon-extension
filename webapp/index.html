@@ -215,6 +215,21 @@
   </div>
 </div>
 
+<!-- Asking before destroying something. A native <dialog> rather than a
+     hand-rolled overlay: it traps focus, closes on Escape and restores focus
+     to whatever opened it, none of which is worth reimplementing badly. -->
+<dialog id="confirm" class="confirm" aria-labelledby="confirm-h">
+  <form method="dialog">
+    <h2 id="confirm-h">Remove this garment?</h2>
+    <p id="confirm-what"></p>
+    <p class="confirm-note">It will go from every screen. The shop's own list is not affected.</p>
+    <div class="confirm-acts">
+      <button value="cancel" class="btn" id="confirm-no">Keep it</button>
+      <button value="go" class="btn danger-solid" id="confirm-yes">Remove</button>
+    </div>
+  </form>
+</dialog>
+
 <pre id="debug" hidden></pre>
 
 <script defer src="vendor/lottie_light.min.js"></script>

@@ -62,6 +62,9 @@ const checks = [
   // brings a near-solid white pill of its own, and the icon is measured
   // against THAT - the same construction as the selection ring's inset gap.
   ["the save icon on its pill",    C.text, "#ffffff", 3],
+  // The confirm dialog's destructive button, and the cross that opens it.
+  ["remove button label",          "#ffffff", C.bad, 4.5],
+  ["the remove cross on its pill", C.bad, "#ffffff", 3],
 ];
 
 // The construction that makes selection legible: the ring never touches the

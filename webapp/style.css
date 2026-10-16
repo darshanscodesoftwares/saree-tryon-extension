@@ -239,6 +239,36 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 /* Sits with the tabs because it acts on whichever one is open. Outlined, not
    filled: adding stock is the shopkeeper's job, and the filled button on this
    screen belongs to the customer's. */
+/* The tile and its cross are siblings, because a button cannot hold a button.
+   The wrap is what the rack lays out; the tile fills it. */
+.tile-wrap { position: relative; display: block; min-width: 0; }
+.tile-wrap .tile { width: 100%; }
+/* Top LEFT: the tick marking selection is top right, and a cross that removes
+   sitting next to a tick that selects is a mis-tap waiting to happen. */
+.tile-wrap .drop {
+  position: absolute; top: 10px; left: 10px; z-index: 2;
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,.94); border-color: rgba(0,0,0,.22); color: var(--bad);
+  box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
+}
+.tile-wrap .drop svg { width: 15px; height: 15px; }
+
+/* ----------------------------------------------------------- confirming */
+.confirm {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); color: var(--text);
+  padding: var(--s-4); max-width: 24rem; width: calc(100vw - var(--s-4) * 2);
+}
+.confirm::backdrop { background: rgba(26, 21, 18, .45); }
+.confirm h2 { font-size: 18px; margin: 0 0 var(--s-2); }
+.confirm p { margin: 0 0 var(--s-2); }
+#confirm-what { font-weight: 600; }
+.confirm-note { font-size: 12.5px; color: var(--muted); }
+.confirm-acts { display: flex; gap: var(--s-2); justify-content: flex-end; margin-top: var(--s-4); }
+/* The destructive one is filled, so the safe one is the quiet one - and it is
+   second, where a hurried hand is less likely to land on it. */
+.btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 600; }
+
 .addgarment {
   flex: none; min-height: 40px; padding-inline: var(--s-3);
   font-size: 13px; gap: 5px; border-style: dashed;
