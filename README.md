@@ -344,9 +344,15 @@ test/              seven harnesses, three node checks and a console snippet
 Two shelves, and only one of them survives anything.
 
 **The permanent one** is `src/library.js`, which is in the repository.
+`node tools/remove-garment.mjs --list` shows what is on it and
+`node tools/remove-garment.mjs pink` takes matching ones off, asking first.
 `node tools/add-garment.mjs --kind saree --name "Teal" <image>` converts the
 file, caps it at 1200px, drops it in `sarees/` and writes the line. It survives
 restarts, redeploys and a sleeping free instance, and needs no extension.
+
+There is no cross on these on screen, and that is the truth rather than a
+missing feature: the server would have to edit the repository and redeploy
+itself to honour one, so the button would be lying.
 
 **The temporary one** is the Add button on the screen itself. It adds to
 whichever category tab is open - which is what gets the garment the right
