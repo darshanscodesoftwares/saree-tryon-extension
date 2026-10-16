@@ -554,10 +554,13 @@ body[data-stage="result"]  #resultacts { display: flex; }
 
 /* ============================================================ desktop ===*/
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  /* Bigger tiles, not more of them. There is room on a laptop for the garment
-     to be looked AT rather than identified, and a rack that scrolls sideways
-     spends spare width on the picture instead of on a fourth column. */
-  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: 224px; --dock-h: 84px; }
+  /* Bigger tiles, not more of them: a rack that scrolls sideways spends spare
+     width on the picture instead of on a fourth column.
+     Capped against viewport HEIGHT, because a 1366x768 SCREEN is not a
+     1366x768 window - Chrome's tab strip, address bar and bookmarks take
+     about 120px, leaving roughly 640 to draw in. At a fixed 224 the shelf
+     needed 526px of a 492px row and the dock covered the bottom of it. */
+  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: clamp(140px, 26vh, 224px); --dock-h: 84px; }
   body { height: 100dvh; overflow: hidden;
          grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h); }
   #work {

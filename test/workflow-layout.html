@@ -45,7 +45,11 @@ const lines = [];
 
 // The sizes laptops are. 1366x768 is the tightest in height, which is the
 // axis that breaks.
-const LAPTOPS = [[1366, 768], [1440, 900]];
+// The SCREEN is 1366x768; the viewport is not. Chrome's tab strip, address
+// bar and bookmarks take roughly 120px off the top, so a maximised window on
+// that screen leaves about 640px to draw in - and testing the full 768 is
+// testing a window nobody has. The short rows are the real ones.
+const LAPTOPS = [[1366, 640], [1440, 772], [1366, 768], [1440, 900]];
 // Phones are allowed to scroll DOWN - the spec says so, and a guided
 // one-task-at-a-time column should. They are never allowed to scroll
 // SIDEWAYS: that is always something sticking out, and it crops the thing
@@ -105,6 +109,23 @@ for (const [w, h] of LAPTOPS) {
   const tile = d.querySelector(".tile")?.getBoundingClientRect();
   ok(`${w}x${h}: garments are still big enough to see`, (tile?.width ?? 0) >= 120,
      `${Math.round(tile?.width ?? 0)}px wide`);
+
+  // A card's contents must stay inside the card. The last redesign passed
+  // every check on this page while the rack hung out of its box and the
+  // heading vanished, because nothing was looking at the cards themselves.
+  for (const id of ["you", "shelf"]) {
+    const card = d.getElementById(id);
+    const box = card.getBoundingClientRect();
+    const stray = [...card.querySelectorAll("*")].find((n) => {
+      const r = n.getBoundingClientRect();
+      if (!r.width || !r.height) return false;
+      // Scroll containers are allowed to hold more than they show.
+      if (n.closest(".rack") && n !== card) return false;
+      return r.right > box.right + 2 || r.bottom > box.bottom + 2 || r.left < box.left - 2;
+    });
+    ok(`${w}x${h}: nothing escapes #${id}`, !stray,
+       stray ? `${stray.tagName.toLowerCase()}.${String(stray.className).split(" ")[0]}` : "");
+  }
 
   lines.push(`${w}x${h}  page over by ${over}px | dock top ${Math.round(dock.top)} | ` +
              `tile ${Math.round(tile?.width ?? 0)}px | tabs ${d.querySelectorAll(".tab").length}`);
