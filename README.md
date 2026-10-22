@@ -430,7 +430,8 @@ empties it sooner. Nothing is written to disk.
 Because it is a list of customers' faces, it is behind `CONTROL_KEY` when the
 server has one - the sheet asks for the key once and remembers it in that browser,
 the same key the route switch uses. With no key set it is open to anyone who can
-reach the server. It is hidden on a kiosk, where the next customer would be
+reach the server. Set `HISTORY_OPEN=true` to open the history alone without a key
+(`render.yaml` does, for a demo) - the route switch stays locked. It is hidden on a kiosk, where the next customer would be
 looking at the last one's pictures.
 
 ## Tests

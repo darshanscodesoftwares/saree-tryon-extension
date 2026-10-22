@@ -64,5 +64,22 @@ try {
   await once(server, "exit").catch(() => {});
 }
 
+// HISTORY_OPEN is for a demo, and must open the history and nothing else.
+const OPEN_PORT = PORT + 500;
+const open = spawn(process.execPath, ["server.mjs"], {
+  env: { ...process.env, PORT: String(OPEN_PORT), HTTPS_PORT: String(OPEN_PORT + 1000), CONTROL_KEY: KEY, HISTORY_OPEN: "true", OPENAI_API_KEY: "" },
+  stdio: "ignore",
+});
+try {
+  const O = `http://127.0.0.1:${OPEN_PORT}`;
+  for (let i = 0; i < 40; i++) { try { if ((await fetch(`${O}/api/health`)).ok) break; } catch {} await new Promise((r) => setTimeout(r, 100)); }
+  ok("HISTORY_OPEN: the list needs no key", (await fetch(`${O}/api/history`)).status === 200);
+  ok("HISTORY_OPEN: the route switch still does",
+     (await fetch(`${O}/api/mode`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "extension" }) })).status === 403);
+} finally {
+  open.kill();
+  await once(open, "exit").catch(() => {});
+}
+
 console.log(failed ? `\n${failed} failed` : "\nall passed");
 process.exit(failed ? 1 : 0);

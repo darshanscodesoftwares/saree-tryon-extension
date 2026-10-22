@@ -28,3 +28,9 @@ services:
       # stranger flipping the service into API mode and spending the balance.
       - key: CONTROL_KEY
         sync: false
+      # DEMO: lets anyone open the history sheet without the key. It shows
+      # customers' pictures, so set this to "false" (or delete it) once the
+      # demo is over. It does not open the route switch - that still needs
+      # CONTROL_KEY.
+      - key: HISTORY_OPEN
+        value: "true"

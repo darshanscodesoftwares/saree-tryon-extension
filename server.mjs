@@ -52,6 +52,11 @@ let mode = MODES.includes(process.env.MODE) ? process.env.MODE : "auto";
 // when it is not.
 const CONTROL_KEY = process.env.CONTROL_KEY ?? "";
 const mayControl = (req) => !CONTROL_KEY || req.headers["x-control-key"] === CONTROL_KEY;
+// The history can be opened to everyone for a demo, without opening the route
+// switch with it: this only ever relaxes the history's own check. Off unless
+// asked for, because it is a list of customers' photographs.
+const HISTORY_OPEN = /^(1|true|yes)$/i.test(process.env.HISTORY_OPEN ?? "");
+const mayViewHistory = (req) => HISTORY_OPEN || mayControl(req);
 
 // Whether a job should go to the API rather than to the queue.
 const apiRoute = () => mode === "api" || (mode === "auto" && imageApi.ready());
@@ -348,11 +353,11 @@ async function api(req, res, path) {
   // THE HISTORY. Behind the control key when there is one: it is a list of
   // customers' photographs, and the page that shows it is a staff page.
   if (path === "/api/history" && req.method === "GET") {
-    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    if (!mayViewHistory(req)) return json(res, 403, { error: "wrong or missing control key" });
     return json(res, 200, { history: history.map(({ id, at, name, kind }) => ({ id, at, name, kind })) });
   }
   if (path === "/api/history" && req.method === "DELETE") {
-    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    if (!mayViewHistory(req)) return json(res, 403, { error: "wrong or missing control key" });
     const n = history.length;
     history = [];
     console.log(`  history cleared (${n})`);
@@ -360,7 +365,7 @@ async function api(req, res, path) {
   }
   const pic = path.match(/^\/api\/history\/([0-9a-f-]{36})$/);
   if (pic && req.method === "GET") {
-    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    if (!mayViewHistory(req)) return json(res, 403, { error: "wrong or missing control key" });
     const h = history.find((x) => x.id === pic[1]);
     if (!h) return json(res, 404, { error: "no such picture" });
     const m = /^data:([^;,]+)(;base64)?,/.exec(h.image);
