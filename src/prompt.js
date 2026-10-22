@@ -22,9 +22,23 @@ const KEEP_PERSON = `Keep from image 1: the person's face, hair, skin tone, body
 // The head is the other half of keeping the person, and it goes wrong in a
 // specific direction: too big. A generator is trying to keep the face legible
 // and recognisable, and the cheapest way to do that is to draw it larger - so
-// the result is a correct face on a body it does not belong to. Giving it the
-// actual proportions of a standing figure is what stops it.
-const KEEP_PROPORTION = `Proportion: the head must belong to the body. A standing adult is roughly seven to eight head-heights tall, the shoulders are about two head-widths across, and the neck is no wider than the jaw. Do not enlarge the head to keep the face recognisable - a bigger head is not a clearer likeness, it is a different person, and it is the commonest way this goes wrong. Take the build from image 1 as well as the face: their height, their shoulder width, the length of their legs against their torso, the size of their hands. If the whole figure will not fit the frame at the right proportion, show less background rather than a smaller body.`;
+// the result is a correct face on a body it does not belong to.
+//
+// The worst case is the one customers actually upload: a close-up, a face with
+// the hands up, no body in frame at all. The model then takes the SCALE of the
+// head from that crop, where the face fills the picture, and builds a body
+// around it. So the prompt does three things. It says the scale comes from the
+// finished figure and not from image 1. It gives a number rather than an
+// adjective - a head is about 13% of a standing figure's height, and "do not
+// make it too big" is exactly what the model believes it has already done. And
+// it points at image 2, a full-length model, as the thing to measure against,
+// because a reference that is in the request is followed more faithfully than a
+// proportion that has to be remembered.
+const KEEP_PROPORTION = `Proportion: the head must belong to the body. Image 1 may be a close-up with only a face, or a face and shoulders - if so, that crop tells you who the person is, NOT how large their head is. Never take the size of the head from image 1. Build the whole standing figure first at natural adult proportions, then fit the person's face to it, shrinking the face as far as that takes.
+
+The numbers: a standing adult is about seven and a half head-heights tall, so the head, chin to crown, is about 13% of the figure's height - in a full-length picture, roughly one head for every seven and a half of the body. The shoulders are about two head-widths across, the neck is no wider than the jaw, and the hands are about the size of the face. Use image 2 as the scale reference: the head in your picture should take up about the same fraction of the picture's height as the model's head does in image 2.
+
+A bigger head is not a clearer likeness, it is a different person, and it is the commonest way this goes wrong. Take the build from image 1 where it is visible - their height, their shoulder width, the length of their legs against their torso. If the whole figure will not fit the frame at the right proportion, show less background rather than a smaller body.`;
 
 // The failure this exists for: a generator keeps the face it was given and
 // then renders the arms, neck and hands a shade or two lighter, so the result

@@ -64,7 +64,13 @@ for (const k of GARMENT_KINDS) {
   ok(`${k.id} gives the figure real proportions`,
      /head-heights/i.test(k.prompt) && /shoulders/i.test(k.prompt));
   ok(`${k.id} forbids enlarging the head`,
-     /do not enlarge the head/i.test(k.prompt));
+     /bigger head is not a clearer likeness/i.test(k.prompt));
+  ok(`${k.id} gives the head a number, not an adjective`,
+     /13%/.test(k.prompt));
+  ok(`${k.id} does not take head scale from a close-up`,
+     /never take the size of the head from image 1/i.test(k.prompt));
+  ok(`${k.id} measures the head against the model in image 2`,
+     /image 2 as the scale reference/i.test(k.prompt));
   ok(`${k.id} takes the build, not just the face`,
      /build from image 1/i.test(k.prompt));
 }
