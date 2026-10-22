@@ -225,6 +225,10 @@ body[data-photo="still"] video,
 body[data-photo="still"] .hint,
 body[data-photo="still"] #capture,
 body[data-photo="still"] #cancelcam { display: none; }
+body[data-photo="still"] #still { object-fit: contain; }
+/* The buttons sit on a photograph, so they bring their own ground: a muted
+   ghost label on a dark gradient was unreadable. */
+.frame-acts .btn.ghost { background: rgba(255,255,255,.94); border-color: rgba(0,0,0,.22); color: var(--text); font-weight: 500; }
 body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, rgba(0,0,0,.75)); }
 
 /* ============================================================== shelf ===*/
@@ -584,6 +588,10 @@ body[data-stage="result"]  #resultacts { display: flex; }
          border-top: 0; border-left: 1px solid var(--hair); position: static; }
   .btn.grow { flex: none; }
   #chips { justify-content: center; }
+  /* This panel scrolls, so the photograph keeps its own 3:4 and is not sized by
+     the room left - there is none to measure here. (More specific than the
+     desktop rule below, which would otherwise win on a wide short window.) */
+  #work #you .frame { flex: none; width: 100%; max-width: 360px; margin: 0; }
   .results { grid-template-columns: 1fr 1fr; --shot-h: calc(100dvh - 120px); }
   .shot.before { display: flex; order: -1; }
 }
@@ -607,6 +615,9 @@ body[data-stage="result"]  #resultacts { display: flex; }
   #plinth { grid-area: plinth; }
   /* Side by side here too: a customer comparing herself with the result needs
      both in view, and this screen is wide enough to give each a real size. */
+  /* The photograph at its own 3:4, no taller than about half the screen -
+     at full width it was 1300px tall and pushed everything off the panel. */
+  #you .frame { width: min(100%, calc(52dvh * 3 / 4)); margin-inline: auto; }
   .results { grid-template-columns: 1fr 1fr; max-width: 1000px;
              --shot-h: calc(100dvh - var(--bar-h) - var(--dock-h) - var(--floor) - 190px); }
   .shot.before { display: flex; order: -1; }
@@ -635,7 +646,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
   /* The stepper only earns its room where there is room: a laptop bar has it,
      a phone bar does not and the workflow there is one task at a time anyway. */
   .steps { display: flex; }
-  #you { grid-area: you; min-height: 0; display: flex; flex-direction: column; }
+  #you { grid-area: you; align-self: stretch; min-height: 0; display: flex; flex-direction: column; }
   /* No vertical scroll of its own any more. The rack runs sideways, so the
      shelf is the same height whether the shop stocks three garments or sixty -
      which is what makes the whole workflow fit a 768px laptop without the page
@@ -653,7 +664,11 @@ body[data-stage="result"]  #resultacts { display: flex; }
   /* Centred in the leftover room rather than stretched to fill it: a dashed
      box blown up to 500px tall is a bigger hole than the one it was covering. */
   #you .chooser { margin-block: auto; }
-  #you .frame { flex: 0 1 auto; margin-block: auto; }
+  /* Sized by the room left, not by its own width. It used to be width:auto
+     with auto side margins, and an element whose only content is positioned
+     has no width of its own - so in this column it came out 2px wide and the
+     photograph a customer had just taken or uploaded was simply not there. */
+  #you .frame { flex: 1 1 0; min-height: 0; width: auto; align-self: center; margin: auto 0; }
   #resultpane { grid-area: 1 / 1 / 2 / 3; overflow-y: auto; max-height: 100%; }
   .results { grid-template-columns: 1fr 1fr; align-items: start; }
   .shot.before { display: flex; order: -1; }
@@ -661,7 +676,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
   #act { justify-content: flex-end; }
   #act #chips { margin-right: auto; }
   .btn.grow { flex: none; min-width: 260px; }
-  .frame { max-height: min(56dvh, 420px); aspect-ratio: 3/4; margin-inline: auto; width: auto; }
+  .frame { max-width: 100%; }
   .chooser { flex: 1 1 auto; min-height: 0; justify-content: center; }
 }
 
