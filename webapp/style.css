@@ -506,6 +506,10 @@ body[data-stage="working"] #wait { display: grid; }
    meaning is a shape; Try another keeps its words because it is the one thing
    a customer is being invited to do. */
 #resultacts .btn { padding-inline: var(--s-3); font-size: 15px; }
+/* Back is the only way off the result, and it clears the screen, so it is
+   bigger than its neighbours: an arrow a thumb cannot miss. */
+#resultacts .back { width: calc(var(--tap) + 12px); height: calc(var(--tap) + 12px); padding: 0; border-width: 2px; }
+#resultacts .back svg { width: 30px; height: 30px; }
 /* The kiosk is the shop's own machine: a file saved there lands somewhere no
    customer can reach. */
 body[data-kiosk] #save { display: none; }

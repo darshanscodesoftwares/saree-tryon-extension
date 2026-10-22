@@ -11,6 +11,7 @@
 import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
 import { available, garments, generate, addGarment, dropGarment } from "./tryon-client.js";
 import { progressAt } from "./progress.js";
+import { saveResult, clearResult, loadResult } from "./session.js";
 
 const $ = (id) => document.getElementById(id);
 const body = document.body;
@@ -467,6 +468,7 @@ async function run() {
     lastDiagnostic = notes.join("\n");
     el.provenance.textContent = notes.join("\n");
     stage("result");
+    saveResult({ person, garment, image, notes });
   } catch (e) {
     stopMeter();
     say("That didn't work. Shall we try again?", "bad", e.message);
@@ -506,6 +508,7 @@ const idle = {
 function wipe() {
   clearTimeout(idle.t); clearInterval(idle.c);
   el.idlewarn.hidden = true;
+  clearResult();
   stopCamera();
   dropPhoto();
   garment = null;
@@ -679,7 +682,7 @@ const compareOff = () => body.classList.remove("comparing");
 ["pointerdown"].forEach((e) => el.compare.addEventListener(e, compareOn));
 ["pointerup", "pointerleave", "pointercancel"].forEach((e) => el.compare.addEventListener(e, compareOff));
 
-el.another.addEventListener("click", () => { garment = null; renderGarments(); refresh(); stage("choose"); });
+el.another.addEventListener("click", () => { clearResult(); garment = null; renderGarments(); refresh(); stage("choose"); });
 el.restart.addEventListener("click", wipe);
 el.begin.addEventListener("click", () => { el.attract.hidden = true; stage("choose"); });
 el.stay.addEventListener("click", () => idle.restart());
@@ -707,7 +710,7 @@ async function check() {
     const next = await garments().catch(() => shelf);
     if (next.length !== shelf.length || next.some((g, i) => g.id !== shelf[i]?.id)) {
       shelf = next;
-      if (garment && !shelf.some((g) => g.id === garment.id)) garment = null;
+      if (garment && body.dataset.stage !== "result" && !shelf.some((g) => g.id === garment.id)) garment = null;
       renderGarments();
     }
   }
@@ -715,8 +718,34 @@ async function check() {
   refresh();
 }
 
+// A reload on the result screen puts the result back. Only the back arrow
+// (wipe) or Try another, or the record growing stale, ends it.
+const KEEP_FOR = KIOSK ? 3 * 60 * 1000 : 6 * 60 * 60 * 1000;
+
+async function restore() {
+  const saved = await loadResult(KEEP_FOR);
+  if (!saved) return false;
+  person = saved.person;
+  garment = saved.garment;
+  el.still.src = person;
+  el.chipYouImg.src = person;
+  el.chipYou.dataset.filled = "1";
+  el.chipGarmentImg.src = garment.dataUrl;
+  el.chipGarment.dataset.filled = "1";
+  photo("still");
+  el.result.src = saved.image;
+  el.before.src = person;
+  el.provenance.textContent = (saved.notes ?? []).join("\n");
+  lastDiagnostic = (saved.notes ?? []).join("\n");
+  el.attract.hidden = true;
+  stage("result");
+  return true;
+}
+
 (async function boot() {
-  if (KIOSK) { body.dataset.kiosk = "1"; el.attract.hidden = false; stage("attract"); }
+  if (KIOSK) body.dataset.kiosk = "1";
+  if (await restore()) { /* straight back to the picture */ }
+  else if (KIOSK) { el.attract.hidden = false; stage("attract"); }
   else { el.attract.hidden = true; stage("choose"); }
   await check();
   setInterval(check, 15000);
