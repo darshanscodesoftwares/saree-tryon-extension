@@ -416,6 +416,23 @@ two reference photographs, came back with a picture and cost about $0.02
 (roughly 2 rupees). Both routes run through that one module, so the pricing
 script and the live server cannot disagree about what is being bought.
 
+## History
+
+The clock button beside the **?** shows the pictures this server has made, newest
+first, each with the garment and the time. Click one to open it full screen and
+zoom.
+
+It lives in the server's memory and is **meant to disappear**: a restart or a
+redeploy empties it, and a free Render instance does both. It keeps the last 30,
+only successful pictures (not the customer's own photograph), and **Clear all**
+empties it sooner. Nothing is written to disk.
+
+Because it is a list of customers' faces, it is behind `CONTROL_KEY` when the
+server has one - the sheet asks for the key once and remembers it in that browser,
+the same key the route switch uses. With no key set it is open to anyone who can
+reach the server. It is hidden on a kiosk, where the next customer would be
+looking at the last one's pictures.
+
 ## Tests
 
 `npm test` runs the four that need no browser. The rest are pages: `npm start`

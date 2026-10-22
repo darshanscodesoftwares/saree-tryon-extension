@@ -107,6 +107,28 @@ const reap = () => {
   for (const [id, j] of jobs) if (j.at < cut) jobs.delete(id);
 };
 
+// THE HISTORY: what has been made since this process started.
+//
+// Memory only, and meant to be. A free Render instance sleeps and redeploys
+// and takes it with it, and that is the behaviour wanted: these are
+// photographs of customers, so nothing here should outlive the server by any
+// longer than it has to. Capped as well, so a busy day cannot fill the
+// instance. Newest first.
+const HISTORY_MAX = 30;
+let history = [];
+const remember = (id, j) => {
+  if (!j.image || history.some((h) => h.id === id)) return;     // once per job
+  const g = j.request?.garment;
+  history.unshift({
+    id,
+    at: Date.now(),
+    name: String(g?.name ?? "").slice(0, 80),
+    kind: g?.kind ? String(g.kind).slice(0, 40) : null,
+    image: j.image,
+  });
+  if (history.length > HISTORY_MAX) history.length = HISTORY_MAX;
+};
+
 // THE SERVER AS ITS OWN WORKER.
 //
 // A job still goes into the queue and the screen still polls for it, exactly
@@ -123,6 +145,7 @@ async function runOnApi(id) {
     j.state = "done";
     j.image = image;
     j.notes = notes;
+    remember(id, j);
     console.log(`  job ${id.slice(0, 8)} delivered by the API`);
   } catch (e) {
     const why = String(e?.message ?? e);
@@ -255,6 +278,7 @@ async function api(req, res, path) {
     j.image = body.image ?? null;
     j.notes = body.notes ?? [];
     j.at = Date.now();
+    remember(done[1], j);
     return json(res, 200, { ok: true });
   }
 
@@ -319,6 +343,34 @@ async function api(req, res, path) {
     // and a DELETE here must not look like it can change that.
     if (addedHere.length === before) return json(res, 404, { error: "not one of this screen's" });
     return json(res, 200, { ok: true, total: catalogue().length });
+  }
+
+  // THE HISTORY. Behind the control key when there is one: it is a list of
+  // customers' photographs, and the page that shows it is a staff page.
+  if (path === "/api/history" && req.method === "GET") {
+    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    return json(res, 200, { history: history.map(({ id, at, name, kind }) => ({ id, at, name, kind })) });
+  }
+  if (path === "/api/history" && req.method === "DELETE") {
+    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    const n = history.length;
+    history = [];
+    console.log(`  history cleared (${n})`);
+    return json(res, 200, { ok: true, cleared: n });
+  }
+  const pic = path.match(/^\/api\/history\/([0-9a-f-]{36})$/);
+  if (pic && req.method === "GET") {
+    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    const h = history.find((x) => x.id === pic[1]);
+    if (!h) return json(res, 404, { error: "no such picture" });
+    const m = /^data:([^;,]+)(;base64)?,/.exec(h.image);
+    // The bytes themselves, so a thumbnail is an ordinary image and the list
+    // above stays small. A picture the extension could only hand over as a
+    // link is passed on as one.
+    if (!m) return json(res, 200, { url: h.image });
+    const bytes = m[2] ? Buffer.from(h.image.slice(m[0].length), "base64") : Buffer.from(decodeURIComponent(h.image.slice(m[0].length)));
+    res.writeHead(200, { "content-type": m[1], "cache-control": "no-store" });
+    return res.end(bytes);
   }
 
   // Is anyone home?

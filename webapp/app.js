@@ -9,7 +9,8 @@
 // tryon-client.js for a picture and shows what comes back.
 
 import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
-import { available, garments, generate, addGarment, dropGarment } from "./tryon-client.js";
+import { available, garments, generate, addGarment, dropGarment,
+         history as listHistory, historyPicture, clearHistory } from "./tryon-client.js";
 import { progressAt } from "./progress.js";
 import { saveResult, clearResult, loadResult } from "./session.js";
 
@@ -36,6 +37,9 @@ const el = {
   expand: $("expand"), viewer: $("viewer"), vStage: $("v-stage"), vImg: $("v-img"),
   vAfter: $("v-after"), vBefore: $("v-before"), vClose: $("v-close"),
   vIn: $("v-in"), vOut: $("v-out"), vReset: $("v-reset"),
+  historyBtn: $("historybtn"), history: $("history"), hClose: $("history-close"),
+  hKey: $("history-key"), hKeyIn: $("history-keyin"), hKeyGo: $("history-keygo"),
+  hSay: $("history-say"), hGrid: $("history-grid"), hClear: $("history-clear"),
   idlewarn: $("idlewarn"), idlecount: $("idlecount"), stay: $("stay"),
 };
 
@@ -450,6 +454,7 @@ async function run() {
       person,
       saree: garment.dataUrl,
       prompt: promptFor(garment.kind),
+      garment: { name: garment.name, kind: garment.kind },
       // The big line stays constant. The small one carries the stage, and the
       // meter's clock only starts once it is really being generated.
       onStage: (s) => {
@@ -515,6 +520,7 @@ function wipe() {
   el.chipGarmentImg.removeAttribute("src");
   delete el.chipGarment.dataset.filled;
   closeViewer();
+  closeHistory();
   el.vImg.removeAttribute("src");
   el.result.removeAttribute("src");
   el.before.removeAttribute("src");
@@ -803,6 +809,7 @@ function zoomBy(factor) {
 }
 
 function showInViewer(which) {
+  delete el.viewer.dataset.solo;
   viewing = which;
   const src = (which === "before" ? el.before : el.result).getAttribute("src");
   el.vImg.src = src ?? "";
@@ -816,6 +823,17 @@ function showInViewer(which) {
 function openViewer(which) {
   if (!(which === "before" ? el.before : el.result).getAttribute("src")) return;
   showInViewer(which);
+  if (!el.viewer.open) el.viewer.showModal();
+}
+
+// One picture on its own, for the history: there is no "your photo" to switch
+// to, so the switch is hidden rather than offered and left dead.
+function openPicture(src, alt) {
+  el.viewer.dataset.solo = "1";
+  el.vImg.src = src;
+  el.vImg.alt = alt;
+  zoom = { s: 1, x: 0, y: 0 };
+  paintZoom();
   if (!el.viewer.open) el.viewer.showModal();
 }
 
@@ -893,4 +911,131 @@ el.viewer.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
     showInViewer(viewing === "after" ? "before" : "after");
   }
+});
+
+
+// --------------------------------------------------------------- history
+//
+// What the server has made since it last started, for staff. The server keeps
+// it in memory and a restart empties it, so nothing here is stored: the
+// pictures are fetched when the sheet opens and let go when it closes.
+// Not on a kiosk - see the button in index.html.
+
+const KEY_NAME = "saree-control-key";      // shared with control.html
+const keyOf = () => { try { return localStorage.getItem(KEY_NAME) ?? ""; } catch { return ""; } };
+
+let held = [];            // object URLs to give back
+let loadRun = 0;          // a later open or a close cancels an earlier load
+
+function releasePictures() {
+  for (const u of held) URL.revokeObjectURL(u);
+  held = [];
+}
+
+function closeHistory() {
+  if (el.history.open) el.history.close();
+}
+
+const whenLabel = (at) => {
+  const d = new Date(at);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString()
+    ? time
+    : `${d.toLocaleDateString([], { day: "numeric", month: "short" })}, ${time}`;
+};
+
+async function loadHistory() {
+  const run = ++loadRun;
+  releasePictures();
+  el.hGrid.replaceChildren();
+  el.hKey.hidden = true;
+  el.hClear.hidden = true;
+  el.hSay.textContent = "Loading\u2026";
+
+  let items;
+  try {
+    items = await listHistory(keyOf());
+  } catch (e) {
+    if (run !== loadRun) return;
+    if (e.locked) {
+      el.hKey.hidden = false;
+      el.hSay.textContent = keyOf() ? "That key was not accepted." : "This server asks for its control key.";
+      el.hKeyIn.focus();
+    } else {
+      el.hSay.textContent = "Could not load the history. Try again in a moment.";
+    }
+    return;
+  }
+  if (run !== loadRun) return;
+
+  if (!items.length) {
+    el.hSay.textContent = "Nothing yet. Pictures made from now on will appear here.";
+    return;
+  }
+  el.hSay.textContent = `${items.length} ${items.length === 1 ? "picture" : "pictures"}`;
+  el.hClear.hidden = false;
+
+  for (const it of items) {
+    const card = document.createElement("button");
+    card.className = "hcard";
+    card.type = "button";
+    const kind = GARMENT_KINDS.find((k) => k.id === it.kind);
+    const what = it.name || (kind ? kind.name : "Picture");
+    card.setAttribute("aria-label", `${what}, ${whenLabel(it.at)}. Open full screen.`);
+    const img = document.createElement("img");
+    img.alt = "";
+    const cap = document.createElement("span");
+    cap.className = "hcap";
+    cap.textContent = what;
+    const when = document.createElement("span");
+    when.className = "hwhen";
+    when.textContent = whenLabel(it.at);
+    card.append(img, cap, when);
+    el.hGrid.append(card);
+
+    // One at a time, so thirty full-size pictures are not asked for at once.
+    historyPicture(it.id, keyOf()).then(({ src, revoke }) => {
+      if (run !== loadRun) { if (revoke) URL.revokeObjectURL(src); return; }
+      if (revoke) held.push(src);
+      img.src = src;
+      card.addEventListener("click", () => openPicture(src, `${what}, made at ${whenLabel(it.at)}`));
+    }).catch(() => { card.classList.add("missing"); });
+  }
+}
+
+async function openHistory() {
+  if (!el.history.open) el.history.showModal();
+  await loadHistory();
+}
+
+el.historyBtn.addEventListener("click", openHistory);
+el.hClose.addEventListener("click", closeHistory);
+el.history.addEventListener("click", (e) => { if (e.target === el.history) closeHistory(); });
+el.history.addEventListener("close", () => {
+  loadRun++;
+  releasePictures();
+  el.hGrid.replaceChildren();
+  armClear(false);
+});
+
+el.hKeyGo.addEventListener("click", () => {
+  try { localStorage.setItem(KEY_NAME, el.hKeyIn.value.trim()); } catch {}
+  loadHistory();
+});
+el.hKeyIn.addEventListener("keydown", (e) => { if (e.key === "Enter") el.hKeyGo.click(); });
+
+// Clearing everything asks twice, in the button itself: the first press
+// changes what it says, the second does it, and it relaxes on its own.
+let armed = null;
+function armClear(on) {
+  clearTimeout(armed);
+  el.hClear.textContent = on ? "Press again to clear all" : "Clear all";
+  el.hClear.classList.toggle("danger-solid", on);
+  if (on) armed = setTimeout(() => armClear(false), 3500);
+}
+el.hClear.addEventListener("click", async () => {
+  if (!el.hClear.classList.contains("danger-solid")) return armClear(true);
+  armClear(false);
+  try { await clearHistory(keyOf()); } catch { el.hSay.textContent = "Could not clear it."; return; }
+  loadHistory();
 });

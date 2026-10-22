@@ -51,6 +51,13 @@
   </ol>
 
   <p id="status" class="status" role="status" aria-live="polite"></p>
+  <!-- Staff: what has been made since the server started. Not on a kiosk,
+       where the next customer would be looking at the last one's photographs. -->
+  <button id="historybtn" class="staff" aria-label="History of pictures made">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v4h4"/><path d="M12 7.5V12l3 2"/>
+    </svg>
+  </button>
   <button id="staff" class="staff" aria-label="Technical details, for staff">?</button>
 </header>
 
@@ -254,6 +261,29 @@
     <button id="v-out" class="iconbtn" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
     <button id="v-reset" class="v-pct" aria-label="Reset zoom">100%</button>
     <button id="v-in" class="iconbtn" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+  </div>
+</dialog>
+
+<!-- Pictures made since the server last started. Gone when it restarts - that
+     is deliberate, and the sheet says so. -->
+<dialog id="history" class="history" aria-labelledby="history-h">
+  <div class="history-top">
+    <div>
+      <h2 id="history-h">History</h2>
+      <p class="history-note">Pictures made since this server last started. They are cleared when it restarts.</p>
+    </div>
+    <button id="history-close" class="iconbtn" aria-label="Close history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+    </button>
+  </div>
+  <div id="history-key" class="history-key" hidden>
+    <input id="history-keyin" type="password" placeholder="Control key" autocomplete="off" aria-label="Control key">
+    <button id="history-keygo" class="btn primary">Unlock</button>
+  </div>
+  <p id="history-say" class="history-say" role="status" aria-live="polite"></p>
+  <div id="history-grid" class="history-grid"></div>
+  <div class="history-foot">
+    <button id="history-clear" class="btn" hidden>Clear all</button>
   </div>
 </dialog>
 

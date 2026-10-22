@@ -6,6 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",
-    "test": "node test/prompts.mjs && node test/contrast.mjs && node test/progress.mjs && node test/mode.mjs"
+    "test": "node test/prompts.mjs && node test/contrast.mjs && node test/progress.mjs && node test/mode.mjs && node test/history.mjs"
   }
 }

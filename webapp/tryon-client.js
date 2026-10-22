@@ -73,14 +73,15 @@ export async function garments() {
  * @param person  data URL of the customer
  * @param saree   data URL of the garment
  * @param prompt  the instruction
+ * @param garment {name, kind}, so the history can say what each picture was of
  * @param onStage called with ("queued"|"working", note)
  * @returns {Promise<{image: string, notes: string[]}>}
  */
-export async function generate({ person, saree, prompt, onStage }) {
+export async function generate({ person, saree, prompt, garment, onStage }) {
   const posted = await fetch(api("../api/jobs"), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ person, saree, prompt }),
+    body: JSON.stringify({ person, saree, prompt, garment }),
   });
   if (!posted.ok) throw new Error(`the queue would not take it (${posted.status})`);
   const { id, worker } = await posted.json();
@@ -140,4 +141,40 @@ export async function dropGarment(id) {
   const r = await fetch(api(`../api/garments/${id}`), { method: "DELETE" });
   if (!r.ok) throw new Error(`could not remove it (${r.status})`);
   return r.json();
+}
+
+// ---------------------------------------------------------------- history
+//
+// What this server has made since it last started. Memory on the server, so a
+// restart or a redeploy empties it - which is the intent, not a limitation.
+// Behind the control key when the server has one; `locked` says it asked.
+
+const withKey = (key) => (key ? { "x-control-key": key } : {});
+const locked = () => Object.assign(new Error("needs the control key"), { locked: true });
+
+/** @returns {Promise<Array<{id: string, at: number, name: string, kind: string|null}>>} */
+export async function history(key) {
+  const r = await fetch(api("../api/history"), { cache: "no-store", headers: withKey(key) });
+  if (r.status === 403) throw locked();
+  if (!r.ok) throw new Error(`could not load the history (${r.status})`);
+  return (await r.json()).history ?? [];
+}
+
+/**
+ * One picture, as something an <img> can show. Fetched rather than linked
+ * because the control key travels as a header, which an <img> cannot send.
+ * The caller revokes the URL it gets back.
+ */
+export async function historyPicture(id, key) {
+  const r = await fetch(api(`../api/history/${id}`), { cache: "no-store", headers: withKey(key) });
+  if (r.status === 403) throw locked();
+  if (!r.ok) throw new Error(`could not load that picture (${r.status})`);
+  if ((r.headers.get("content-type") ?? "").includes("json")) return { src: (await r.json()).url, revoke: false };
+  return { src: URL.createObjectURL(await r.blob()), revoke: true };
+}
+
+export async function clearHistory(key) {
+  const r = await fetch(api("../api/history"), { method: "DELETE", headers: withKey(key) });
+  if (r.status === 403) throw locked();
+  if (!r.ok) throw new Error(`could not clear the history (${r.status})`);
 }
