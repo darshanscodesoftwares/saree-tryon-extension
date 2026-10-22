@@ -132,11 +132,15 @@
     <h2 class="step-h">Here you are</h2>
     <div class="results">
       <figure class="shot after">
-        <!-- The wrapper shrink-wraps the picture. .shot img is width:auto, so
-             the figure is usually wider than the image it holds; pinning Save
-             to the figure would float it off the edge of the photograph. -->
+        <!-- Both pictures sit in the same fixed 2:3 box, so the two cards are
+             the same size and line up whatever shape either photograph is. -->
         <span class="shot-wrap">
-          <img id="result" alt="You, wearing the garment you chose">
+          <img id="result" alt="You, wearing the garment you chose" data-view="after">
+          <button id="expand" class="iconbtn onshot onshot-l" aria-label="View full screen and zoom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="m20 4-7 7"/><path d="m4 20 7-7"/>
+            </svg>
+          </button>
           <button id="save" class="iconbtn onshot" aria-label="Save this photo to your device">
             <svg class="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M4.5 17.5V19a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-1.5"/>
@@ -150,7 +154,9 @@
         <p id="provenance" class="provenance"></p>
       </figure>
       <figure class="shot before">
-        <img id="before" alt="The photograph you gave">
+        <span class="shot-wrap">
+          <img id="before" alt="The photograph you gave" data-view="before">
+        </span>
         <figcaption>Your photo</figcaption>
       </figure>
     </div>
@@ -228,6 +234,27 @@
       <button value="go" class="btn danger-solid" id="confirm-yes">Remove</button>
     </div>
   </form>
+</dialog>
+
+<!-- Full-screen view of either picture, with zoom. A native <dialog> for the
+     same reasons as the confirm below: focus is trapped, Escape closes it and
+     focus returns to what opened it. -->
+<dialog id="viewer" class="viewer" aria-label="Full screen picture">
+  <div class="viewer-top">
+    <div class="seg" role="group" aria-label="Which picture">
+      <button id="v-after" class="seg-b" aria-pressed="true">Wearing it</button>
+      <button id="v-before" class="seg-b" aria-pressed="false">Your photo</button>
+    </div>
+    <button id="v-close" class="iconbtn v-x" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+    </button>
+  </div>
+  <div id="v-stage" class="viewer-stage"><img id="v-img" alt="" draggable="false"></div>
+  <div class="viewer-tools" role="group" aria-label="Zoom">
+    <button id="v-out" class="iconbtn" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button id="v-reset" class="v-pct" aria-label="Reset zoom">100%</button>
+    <button id="v-in" class="iconbtn" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+  </div>
 </dialog>
 
 <pre id="debug" hidden></pre>

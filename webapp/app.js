@@ -32,6 +32,9 @@ const el = {
   result: $("result"), before: $("before"), provenance: $("provenance"),
   compare: $("compare"), save: $("save"), another: $("another"), restart: $("restart"),
   attract: $("attract"), begin: $("begin"),
+  expand: $("expand"), viewer: $("viewer"), vStage: $("v-stage"), vImg: $("v-img"),
+  vAfter: $("v-after"), vBefore: $("v-before"), vClose: $("v-close"),
+  vIn: $("v-in"), vOut: $("v-out"), vReset: $("v-reset"),
   idlewarn: $("idlewarn"), idlecount: $("idlecount"), stay: $("stay"),
 };
 
@@ -508,6 +511,8 @@ function wipe() {
   garment = null;
   el.chipGarmentImg.removeAttribute("src");
   delete el.chipGarment.dataset.filled;
+  closeViewer();
+  el.vImg.removeAttribute("src");
   el.result.removeAttribute("src");
   el.before.removeAttribute("src");
   // Otherwise the next customer's picture arrives already wearing a tick.
@@ -717,3 +722,146 @@ async function check() {
   setInterval(check, 15000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
 })().catch((e) => say("This screen failed to start - please ask one of us.", "bad", String(e?.stack ?? e)));
+
+
+// ---------------------------------------------------------------- viewer
+//
+// Full screen, and zoomable: wheel or +/- on a desktop, pinch and drag on a
+// phone. The picture is transformed about its centre; zooming about a point
+// (the cursor, or the middle of a pinch) is just keeping that point still,
+// which is the one line in zoomAt.
+
+const Z_MIN = 1, Z_MAX = 6;
+let zoom = { s: 1, x: 0, y: 0 };
+let viewing = "after";
+const pointers = new Map();
+let pinch = null;
+
+function paintZoom() {
+  if (zoom.s <= Z_MIN) { zoom.x = 0; zoom.y = 0; }
+  el.vImg.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.s})`;
+  el.vReset.textContent = `${Math.round(zoom.s * 100)}%`;
+  el.vOut.disabled = zoom.s <= Z_MIN;
+  el.vIn.disabled = zoom.s >= Z_MAX;
+}
+
+// Keep the picture from being dragged entirely off the stage: it may move only
+// as far as its zoomed edge would leave the stage.
+function clampPan() {
+  const st = el.vStage.getBoundingClientRect();
+  const w = el.vImg.offsetWidth * zoom.s, h = el.vImg.offsetHeight * zoom.s;
+  const mx = Math.max(0, (w - st.width) / 2), my = Math.max(0, (h - st.height) / 2);
+  zoom.x = Math.max(-mx, Math.min(mx, zoom.x));
+  zoom.y = Math.max(-my, Math.min(my, zoom.y));
+}
+
+// (cx, cy) in client coordinates; the point under it stays under it.
+function zoomAt(next, cx, cy) {
+  next = Math.max(Z_MIN, Math.min(Z_MAX, next));
+  const st = el.vStage.getBoundingClientRect();
+  const px = cx - (st.left + st.width / 2), py = cy - (st.top + st.height / 2);
+  const k = next / zoom.s;
+  zoom.x = px - (px - zoom.x) * k;
+  zoom.y = py - (py - zoom.y) * k;
+  zoom.s = next;
+  clampPan();
+  paintZoom();
+}
+
+function zoomBy(factor) {
+  const st = el.vStage.getBoundingClientRect();
+  zoomAt(zoom.s * factor, st.left + st.width / 2, st.top + st.height / 2);
+}
+
+function showInViewer(which) {
+  viewing = which;
+  const src = (which === "before" ? el.before : el.result).getAttribute("src");
+  el.vImg.src = src ?? "";
+  el.vImg.alt = which === "before" ? "The photograph you gave" : "You, wearing the garment you chose";
+  el.vAfter.setAttribute("aria-pressed", String(which === "after"));
+  el.vBefore.setAttribute("aria-pressed", String(which === "before"));
+  zoom = { s: 1, x: 0, y: 0 };
+  paintZoom();
+}
+
+function openViewer(which) {
+  if (!(which === "before" ? el.before : el.result).getAttribute("src")) return;
+  showInViewer(which);
+  if (!el.viewer.open) el.viewer.showModal();
+}
+
+function closeViewer() {
+  if (el.viewer.open) el.viewer.close();
+}
+
+el.expand.addEventListener("click", () => openViewer("after"));
+el.result.addEventListener("click", () => openViewer("after"));
+el.before.addEventListener("click", () => openViewer("before"));
+el.vAfter.addEventListener("click", () => showInViewer("after"));
+el.vBefore.addEventListener("click", () => showInViewer("before"));
+el.vClose.addEventListener("click", closeViewer);
+el.vIn.addEventListener("click", () => zoomBy(1.5));
+el.vOut.addEventListener("click", () => zoomBy(1 / 1.5));
+el.vReset.addEventListener("click", () => { zoom = { s: 1, x: 0, y: 0 }; paintZoom(); });
+// The backdrop is the dialog itself; the stage and controls fill it, so a
+// click that lands on the dialog element is outside everything.
+el.viewer.addEventListener("click", (e) => { if (e.target === el.viewer) closeViewer(); });
+el.viewer.addEventListener("close", () => { el.vImg.removeAttribute("src"); pointers.clear(); pinch = null; });
+
+el.vStage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  // ctrlKey is a trackpad pinch; the factor is gentler there.
+  const k = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022));
+  zoomAt(zoom.s * k, e.clientX, e.clientY);
+}, { passive: false });
+
+el.vStage.addEventListener("dblclick", (e) => {
+  zoomAt(zoom.s > 1.01 ? 1 : 2.5, e.clientX, e.clientY);
+});
+
+const gap = () => {
+  const [a, b] = [...pointers.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+};
+
+el.vStage.addEventListener("pointerdown", (e) => {
+  el.vStage.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  el.vStage.classList.add("dragging");
+  if (pointers.size === 2) pinch = { ...gap(), s: zoom.s };
+});
+
+el.vStage.addEventListener("pointermove", (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  if (pointers.size === 2 && pinch) {
+    p.x = e.clientX; p.y = e.clientY;
+    const g = gap();
+    zoomAt(pinch.s * (g.d / pinch.d), g.cx, g.cy);
+    return;
+  }
+  if (zoom.s > 1) {
+    zoom.x += e.clientX - p.x;
+    zoom.y += e.clientY - p.y;
+    clampPan();
+    paintZoom();
+  }
+  p.x = e.clientX; p.y = e.clientY;
+});
+
+const lift = (e) => {
+  pointers.delete(e.pointerId);
+  pinch = null;
+  if (!pointers.size) el.vStage.classList.remove("dragging");
+};
+el.vStage.addEventListener("pointerup", lift);
+el.vStage.addEventListener("pointercancel", lift);
+
+el.viewer.addEventListener("keydown", (e) => {
+  if (e.key === "+" || e.key === "=") zoomBy(1.5);
+  else if (e.key === "-" || e.key === "_") zoomBy(1 / 1.5);
+  else if (e.key === "0") { zoom = { s: 1, x: 0, y: 0 }; paintZoom(); }
+  else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    showInViewer(viewing === "after" ? "before" : "after");
+  }
+});

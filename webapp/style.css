@@ -360,25 +360,28 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 }
 
 /* ============================================================ results ===*/
-.results { display: grid; gap: var(--s-3); }
-.shot { margin: 0; }
-.shot img {
-  /* width:auto, not 100%. With a fixed width the moment max-height bites it is
-     the SHAPE that gives, and a 2:3 picture of a person comes out squat. Auto
-     on both axes with a cap on each lets the picture fit the box and keep its
-     proportions, which is the whole point of showing it. */
-  width: auto; height: auto;
-  max-width: 100%; max-height: 62dvh;
-  margin-inline: auto; object-fit: contain;
-  border-radius: var(--r); border: 1px solid var(--hair); background: var(--surface-2);
+/* Both pictures sit in the same 2:3 box, centred as a pair. The box, not the
+   photograph, sets the size - so the two cards are identical whatever shape
+   either image is, and a wide upload is letterboxed inside its card instead
+   of making the pair lopsided. contain, never cover: cropping a try-on would
+   cut off the hem or the head. */
+.results {
+  --shot-h: 62dvh;
+  display: grid; gap: var(--s-4);
+  width: 100%; max-width: 940px; margin-inline: auto;
 }
-/* The moment in a saree shop is the unrolling, so the result is not faded in -
-   it is drawn down like cloth off a bolt. */
-/* inline-block so it shrinks to the picture rather than the figure, and sits
-   where the bare img used to - which keeps the caption aligned to the
-   picture's left edge when the height cap makes it narrower than the column. */
-.shot-wrap { position: relative; display: inline-block; max-width: 100%; vertical-align: top; }
-.shot-wrap img { display: block; }
+.shot { margin: 0; display: flex; flex-direction: column; align-items: center; }
+.shot-wrap {
+  position: relative; display: block; flex: none;
+  width: min(100%, calc(var(--shot-h) * 2 / 3)); aspect-ratio: 2 / 3;
+  border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--hair); background: var(--surface-2);
+  box-shadow: 0 1px 2px rgba(26,21,18,.06), 0 10px 28px rgba(26,21,18,.08);
+}
+.shot-wrap img {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  cursor: zoom-in;
+}
 .shot.after img { animation: unveil .76s cubic-bezier(.65,0,.35,1) both; }
 @keyframes unveil {
   from { clip-path: inset(0 0 100% 0 round var(--r)); }
@@ -387,12 +390,12 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 /* What the machine decided, in small print. Not for a customer - hidden on the
    kiosk - but on a phone or a desktop it means a screenshot carries the reason
    a picture is wrong, instead of another round of guessing. */
-.provenance { margin-top: 6px; font: 11px/1.5 ui-monospace, Menlo, monospace; color: var(--muted); white-space: pre-wrap; }
+.provenance { margin-top: 6px; align-self: stretch; font: 11px/1.5 ui-monospace, Menlo, monospace; color: var(--muted); white-space: pre-wrap; }
 body[data-kiosk] .provenance { display: none; }
-.shot figcaption { margin-top: 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.shot figcaption { margin-top: var(--s-2); text-align: center; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
 .shot.before { display: none; }          /* desktop brings it back, side by side */
 body.comparing .shot.after .shot-wrap { display: none; }
-body.comparing .shot.before { display: block; }
+body.comparing .shot.before { display: flex; }
 
 /* =============================================================== dock ===*/
 #act {
@@ -460,6 +463,7 @@ body.comparing .shot.before { display: block; }
   box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.22);
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
+.onshot-l { right: auto; left: 10px; }
 .onshot .i-done { display: none; }
 .onshot.saved { color: var(--ok); }
 .onshot.saved .i-save { display: none; }
@@ -565,8 +569,8 @@ body[data-stage="result"]  #resultacts { display: flex; }
          border-top: 0; border-left: 1px solid var(--hair); position: static; }
   .btn.grow { flex: none; }
   #chips { justify-content: center; }
-  .results { grid-template-columns: 1fr 1fr; }
-  .shot.before { display: block; }
+  .results { grid-template-columns: 1fr 1fr; --shot-h: calc(100dvh - 120px); }
+  .shot.before { display: flex; order: -1; }
 }
 
 /* ============================================================== kiosk ===
@@ -585,6 +589,11 @@ body[data-stage="result"]  #resultacts { display: flex; }
   .chip { width: 72px; height: 72px; }
   .tile .name { font-size: 16px; padding: var(--s-3); }
   #plinth { grid-area: plinth; }
+  /* Side by side here too: a customer comparing herself with the result needs
+     both in view, and this screen is wide enough to give each a real size. */
+  .results { grid-template-columns: 1fr 1fr; max-width: 1000px;
+             --shot-h: calc(100dvh - var(--bar-h) - var(--dock-h) - var(--floor) - 190px); }
+  .shot.before { display: flex; order: -1; }
   .lottie { width: 280px; height: 280px; }
   .pct { font-size: 68px; }
   .meter { width: 420px; height: 8px; }
@@ -631,8 +640,8 @@ body[data-stage="result"]  #resultacts { display: flex; }
   #you .frame { flex: 0 1 auto; margin-block: auto; }
   #resultpane { grid-area: 1 / 1 / 2 / 3; overflow-y: auto; max-height: 100%; }
   .results { grid-template-columns: 1fr 1fr; align-items: start; }
-  .shot.before { display: block; }
-  .shot img { max-height: calc(100dvh - var(--bar-h) - var(--dock-h) - 90px); }
+  .shot.before { display: flex; order: -1; }
+  .results { --shot-h: calc(100dvh - var(--bar-h) - var(--dock-h) - 110px); }
   #act { justify-content: flex-end; }
   #act #chips { margin-right: auto; }
   .btn.grow { flex: none; min-width: 260px; }
@@ -659,3 +668,49 @@ body[data-stage="result"]  #resultacts { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ============================================================ viewer ===
+   Either picture, full screen, zoomable. Dark on purpose: a photograph is
+   judged against neutral, and the paper ground would tint it. */
+.viewer {
+  border: 0; padding: 0; margin: 0; max-width: none; max-height: none;
+  width: 100vw; height: 100dvh; background: #14110f; color: #fff;
+}
+.viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.viewer::backdrop { background: #14110f; }
+.viewer-top {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: max(var(--s-3), env(safe-area-inset-top)) var(--s-3) var(--s-2);
+}
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.12); }
+.seg-b {
+  font: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.82);
+  background: transparent; border: 0; border-radius: 999px;
+  min-height: 38px; padding: 0 var(--s-3); cursor: pointer;
+}
+.seg-b[aria-pressed="true"] { background: #fff; color: #1a1512; }
+.viewer .iconbtn { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); color: #fff; }
+.viewer .iconbtn:hover { background: rgba(255,255,255,.24); }
+.viewer-stage {
+  position: relative; overflow: hidden; min-height: 0;
+  display: grid; place-items: center;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.viewer-stage.dragging { cursor: grabbing; }
+.viewer-stage img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  transform-origin: 50% 50%; will-change: transform;
+  -webkit-user-drag: none; pointer-events: none;
+}
+.viewer-tools {
+  display: flex; align-items: center; justify-content: center; gap: var(--s-2);
+  padding: var(--s-2) var(--s-3) max(var(--s-3), env(safe-area-inset-bottom));
+}
+.v-pct {
+  min-width: 76px; min-height: var(--tap); padding: 0 var(--s-2);
+  font: inherit; font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 600;
+  color: #fff; background: transparent; border: 0; border-radius: 999px; cursor: pointer;
+}
+.v-pct:hover { background: rgba(255,255,255,.12); }
+.viewer :focus-visible { outline-color: #fff; }
