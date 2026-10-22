@@ -90,16 +90,45 @@ function stopCamera() {
 async function startCamera() {
   stopCamera();
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 1280 } }, audio: false,
-    });
+    stream = await getCamera();
   } catch (e) {
     return say("The camera isn't available here - you can still use a photo you already have.",
                "warn", `getUserMedia: ${e.name} ${e.message}`);
   }
   el.video.srcObject = stream;
-  await el.video.play();
+  // Show the frame BEFORE asking the video to play. While it is display:none,
+  // Chrome on a desktop treats a muted autoplay video as not visible and holds
+  // play() pending until it is - so the permission was granted, the camera
+  // light came on, and the await below never returned, leaving the chooser on
+  // screen. Phones do not apply that rule, which is why iOS worked.
   photo("live");
+  try { await el.video.play(); } catch { /* autoplay is already set; a late start is fine */ }
+  // A camera that was granted but never delivers a frame (another app holds
+  // it, or the lid-camera is disabled) is otherwise a black box and no reason.
+  setTimeout(() => {
+    if (stream && body.dataset.photo === "live" && !el.video.videoWidth) {
+      say("The camera is on but sending no picture. Is another app using it?",
+          "warn", "no video frame 4s after getUserMedia resolved");
+    }
+  }, 4000);
+}
+
+// A laptop has no "user" facing mode to speak of, and some webcams refuse a
+// width hint outright; ask for the nice thing first and then for anything.
+async function getCamera() {
+  const asks = [
+    { video: { facingMode: "user", width: { ideal: 1280 } }, audio: false },
+    { video: true, audio: false },
+  ];
+  let last;
+  for (const ask of asks) {
+    try { return await navigator.mediaDevices.getUserMedia(ask); }
+    catch (e) {
+      last = e;
+      if (e.name === "NotAllowedError" || e.name === "SecurityError") break;
+    }
+  }
+  throw last;
 }
 
 function keepPhoto(dataUrl) {
