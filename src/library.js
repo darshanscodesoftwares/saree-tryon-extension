@@ -19,4 +19,6 @@ export const GARMENTS = [
       { id: "mauve-studio", kind: "saree", name: "Mauve, studio", image: "sarees/mauve-studio.jpg" },
   { id: "gold-tissue-plain", kind: "saree", name: "Gold tissue, plain", image: "sarees/gold-tissue-plain.jpg" },
   { id: "studio-bright", kind: "saree", name: "Studio, bright", image: "sarees/studio-bright.jpg" },
+  { id: "beige-overcoat", kind: "formals-men", name: "Beige overcoat", image: "sarees/beige-overcoat.jpg" },
+  { id: "maroon-overcoat", kind: "formals-women", name: "Maroon overcoat", image: "sarees/maroon-overcoat.jpg" },
 ];

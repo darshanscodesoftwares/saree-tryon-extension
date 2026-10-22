@@ -71,11 +71,33 @@ let library = await readFile(LIBRARY, "utf8");
 const taken = new Set([...library.matchAll(/id:\s*"([^"]+)"/g)].map((m) => m[1]));
 await mkdir(SHELF, { recursive: true });
 
-// sips ships with macOS, so this needs nothing installed. Anywhere else the
-// file is copied as it is and the size is reported rather than fixed - a
-// warning beats refusing to work on a machine that is otherwise fine.
-let canResize = true;
-try { await run("sips", ["--version"]); } catch { canResize = false; }
+// sips ships with macOS, so there it needs nothing installed. Elsewhere Pillow
+// does the same job if python3 has it (it usually does). With neither, the file
+// is copied as it is and the size is reported rather than fixed - a warning
+// beats refusing to work on a machine that is otherwise fine. Converting
+// matters beyond tidiness: a .webp copied under a .jpg name is served with the
+// wrong type, and an API that checks the type will refuse it.
+const PILLOW = `
+import sys
+from PIL import Image
+src, dst, side = sys.argv[1], sys.argv[2], int(sys.argv[3])
+im = Image.open(src)
+if im.mode in ("RGBA", "LA", "P"):
+    im = im.convert("RGBA")
+    flat = Image.new("RGB", im.size, (255, 255, 255))
+    flat.paste(im, mask=im.getchannel("A"))
+    im = flat
+else:
+    im = im.convert("RGB")
+im.thumbnail((side, side), Image.LANCZOS)
+im.save(dst, "JPEG", quality=90)
+`;
+let resizer = null;
+try { await run("sips", ["--version"]); resizer = "sips"; }
+catch {
+  try { await run("python3", ["-c", "import PIL"]); resizer = "pillow"; } catch {}
+}
+const canResize = Boolean(resizer);
 
 const added = [];
 for (const path of files) {
@@ -93,10 +115,11 @@ for (const path of files) {
 
   const to = join(SHELF, `${id}.jpg`);
   if (canResize) {
-    await run("sips", ["-s", "format", "jpeg", "-Z", String(LONG_SIDE), from, "--out", to]);
+    if (resizer === "sips") await run("sips", ["-s", "format", "jpeg", "-Z", String(LONG_SIDE), from, "--out", to]);
+    else await run("python3", ["-c", PILLOW, from, to, String(LONG_SIDE)]);
   } else {
     await copyFile(from, to);
-    console.warn(`  ! copied as-is (${extname(from) || "no extension"}); no sips to convert or shrink it`);
+    console.warn(`  ! copied as-is (${extname(from) || "no extension"}); no sips or Pillow to convert or shrink it`);
   }
 
   const size = (await readFile(to)).length;
