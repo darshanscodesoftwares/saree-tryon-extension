@@ -183,6 +183,9 @@ body[data-photo="still"] #you .step-h .num { background: var(--accent); border-c
    The empty state of step one. Short, and offering the two ways in as peers. */
 .chooser {
   display: grid; justify-items: center; gap: var(--s-3);
+  /* Rows keep their own height: where the box is stretched to fill a column,
+     the default would stretch the row of buttons with it. */
+  align-content: center;
   min-height: clamp(132px, 20dvh, 300px);
   padding: var(--s-4) var(--s-3);
   border: 1px dashed var(--line); border-radius: var(--r);
