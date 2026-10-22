@@ -501,15 +501,26 @@ body[data-stage="working"] #wait { display: grid; }
 }
 .waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
 .waitsub { font-size: clamp(12px, 1.4vw, 15px); color: var(--muted); }
-#resultacts { display: none; flex: 1 1 auto; gap: var(--s-2); align-items: center; }
-/* Two icons and one worded button. Peek and Done carry no text because their
-   meaning is a shape; Try another keeps its words because it is the one thing
-   a customer is being invited to do. */
+#resultacts { display: none; flex: 1 1 auto; gap: var(--s-3); align-items: center; justify-content: center; }
+/* Two icons and one worded button, centred as a group. Peek and Back carry no
+   text because their meaning is a shape; Try another keeps its words because
+   it is the one thing a customer is being invited to do. It is capped rather
+   than allowed to fill the dock, or there is no group to centre. */
 #resultacts .btn { padding-inline: var(--s-3); font-size: 15px; }
-/* Back is the only way off the result, and it clears the screen, so it is
-   bigger than its neighbours: an arrow a thumb cannot miss. */
-#resultacts .back { width: calc(var(--tap) + 12px); height: calc(var(--tap) + 12px); padding: 0; border-width: 2px; }
-#resultacts .back svg { width: 30px; height: 30px; }
+#resultacts .btn.grow { flex: 0 1 280px; }
+/* The two icons are a matched pair, a little over the minimum touch size.
+   Back is the only way off the result and it clears the screen, which is why
+   it keeps the heavier ring - but a pair this size is enough to find it. */
+#resultacts .iconbtn { width: calc(var(--tap) + 4px); height: calc(var(--tap) + 4px); padding: 0; }
+#resultacts .iconbtn svg { width: 24px; height: 24px; }
+#resultacts .back { border-width: 2px; }
+/* Hold-to-compare exists for a phone, where the two pictures take turns. Where
+   they are already side by side it has nothing to show. */
+@media (min-width: 1000px) and (min-aspect-ratio: 1/1),
+       (min-width: 760px) and (orientation: portrait),
+       (orientation: landscape) and (max-height: 560px) {
+  #compare { display: none; }
+}
 /* The kiosk is the shop's own machine: a file saved there lands somewhere no
    customer can reach. */
 body[data-kiosk] #save { display: none; }
@@ -590,6 +601,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
   .step-h { font-size: 21px; } .step-h .num { width: 34px; height: 34px; font-size: 16px; }
   .btn { font-size: 19px; padding: 0 var(--s-4); } .btn.grow { max-width: 640px; margin-inline: auto; }
   #resultacts .btn { font-size: 18px; }
+  #resultacts .btn.grow { flex-basis: 380px; margin-inline: 0; }
   .chip { width: 72px; height: 72px; }
   .tile .name { font-size: 16px; padding: var(--s-3); }
   #plinth { grid-area: plinth; }
@@ -659,6 +671,7 @@ body[data-stage="result"]  #resultacts { display: flex; }
   /* Two icons and one label leave room to spare now, but the gap stays tight:
      the icons read as a set rather than as three unrelated controls. */
   #resultacts { gap: var(--s-2); }
+  #resultacts .btn.grow { flex: 1 1 auto; }
   /* The title truncated to "See you..." tells nobody anything, and on a phone
      the customer already knows what they opened. The status earns the room. */
   #bar h1 { display: none; }
