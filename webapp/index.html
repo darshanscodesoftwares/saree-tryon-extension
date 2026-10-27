@@ -3,22 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>See yourself in it</title>
+<title>Digital Trial Room</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <!--
-  Two attributes drive the whole interface: data-stage (where we are) and
-  data-photo (what step one has). Everything else is CSS reacting to them,
-  which is why there are no show/hide calls scattered through app.js.
+  Three attributes drive the whole interface: data-stage (where we are),
+  data-photo (what step two has) and data-view (which selected saree's result
+  is on screen). Everything else is CSS reacting to them, which is why there
+  are no show/hide calls scattered through app.js.
+
+  Stage order follows the reference exactly: choose the saree (or several)
+  first, take the photograph second, see the result third. That is a change
+  from this app's own earlier order - photograph first - made because the
+  reference images are unambiguous about it and a kiosk customer arrives with
+  no saree in mind yet, so browsing first is the natural thing to let her do.
 -->
-<body data-stage="choose" data-photo="empty">
+<body data-stage="choose-saree" data-photo="empty">
 
 <!-- Idle. A kiosk sitting on a half-filled form looks like something somebody
      else left behind, so it returns here and clears the previous customer. -->
 <div id="attract" hidden>
   <div class="attract-in">
     <p class="kicker">Virtual try-on</p>
-    <h2>See yourself in it</h2>
+    <h2>Digital Trial Room</h2>
     <p class="lede">Try on anything in the shop without changing.</p>
     <button id="begin" class="btn primary xl">Touch to begin</button>
     <p class="attract-note">Takes about a minute. Your photograph is cleared when you finish.</p>
@@ -26,21 +33,28 @@
 </div>
 
 <header id="bar">
-  <h1>See yourself in it</h1>
+  <p class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2c0 4-5 5-5 10s5 5 5 9"/><path d="M12 2c0 4 5 5 5 10s-5 5-5 9"/><path d="M12 21v17"/>
+      </svg>
+    </span>
+    <span class="brand-name">Digital Trial Room</span>
+  </p>
 
   <!-- Where you are, and what each step still wants. Two numbered boxes with
        no status told a first-time customer nothing: this says which step is
        live, which is done, and what is missing from it. aria-current carries
        the same fact for anyone not looking at the colour. -->
   <ol id="steps" class="steps" aria-label="Your progress">
-    <li class="step" data-step="photo">
+    <li class="step" data-step="outfit">
       <span class="dot" aria-hidden="true">1</span>
-      <span class="step-name">Your photo</span>
+      <span class="step-name">Choose a saree</span>
       <span class="step-state"></span>
     </li>
-    <li class="step" data-step="outfit">
+    <li class="step" data-step="photo">
       <span class="dot" aria-hidden="true">2</span>
-      <span class="step-name">Choose outfit</span>
+      <span class="step-name">Your photo</span>
       <span class="step-state"></span>
     </li>
     <li class="step" data-step="review">
@@ -63,109 +77,180 @@
 
 <main id="work">
 
-  <section id="you">
-    <h2 class="step-h"><span class="num">1</span> Your photograph</h2>
-
-    <!-- The empty state is a chooser, not a frame. A 3:4 black box reserved for
-         something that does not exist yet was costing ~300px before anything
-         real, at every size. -->
-    <div class="chooser">
-      <svg class="glyph" viewBox="0 0 40 72" aria-hidden="true">
-        <circle cx="20" cy="11" r="8"/>
-        <path d="M20 22c-7 0-12 4-12 10v14h5l2 24h10l2-24h5V32c0-6-5-10-12-10z"/>
-      </svg>
-      <p class="chooser-copy">A clear, full-length photo with your whole body showing</p>
-      <div class="chooser-acts">
-        <label class="btn primary" id="uploadlabel">Upload a photo
-          <input type="file" id="upload" accept="image/jpeg,image/png,image/webp" hidden>
+  <!-- ====================================================== step 1 ====== -->
+  <section id="saree-step" aria-labelledby="saree-step-h">
+    <div class="step-top">
+      <h2 class="step-h" id="saree-step-h"><span class="num">1</span> Choose a saree</h2>
+      <!-- Category pills reflect the real catalogue - saree, and the two
+           formalwear kinds - rather than occasions ("Bridal", "Festive")
+           nothing in the shop's data can back. -->
+      <div class="tabrow">
+        <div id="tabs" class="tabs" role="tablist" aria-label="Garment category"></div>
+        <label class="btn addgarment" id="addlabel">
+          <span aria-hidden="true">+</span> <span id="addword">Add</span>
+          <input type="file" id="addfile" accept="image/jpeg,image/png,image/webp" hidden>
         </label>
-        <button id="start" class="btn">Take a photo</button>
       </div>
-      <!-- The real limits, not reassuring vagueness: the panel decodes with
-           createImageBitmap, which has no HEIC, and a job is capped at 24MB of
-           JSON by the server. A customer who knows this before choosing does
-           not meet a refusal after it. -->
-      <p class="chooser-small">JPEG, PNG or WebP, up to about 15&nbsp;MB. An iPhone photo
-      may be HEIC &mdash; export it as JPEG first.</p>
     </div>
 
-    <div class="frame" id="frame">
-      <video id="video" playsinline muted autoplay></video>
-      <img id="still" alt="Your photograph">
-      <p class="hint">Stand so all of you is in the picture</p>
-      <div class="frame-acts">
-        <button id="capture" class="btn primary">Take the photo</button>
-        <button id="cancelcam" class="btn ghost">Cancel</button>
-        <button id="retake" class="btn ghost">Use a different photo</button>
+    <div class="browse">
+      <!-- The hero: one saree at a time, large. Its own prev/next move
+           through whichever rack is open; the rail does the same by letting
+           a customer jump straight to one. -->
+      <div class="hero">
+        <button id="heroPrev" class="iconbtn hero-arrow hero-arrow-l" aria-label="Previous saree">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="hero-frame">
+          <img id="heroImg" alt="">
+        </div>
+        <button id="heroNext" class="iconbtn hero-arrow hero-arrow-r" aria-label="Next saree">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
       </div>
+      <div id="heroDots" class="hero-dots" role="presentation"></div>
+
+      <div class="hero-card">
+        <div class="hero-card-text">
+          <p id="heroName" class="hero-name"></p>
+          <p id="heroKind" class="hero-kind"></p>
+        </div>
+        <button id="heroSelect" class="btn primary hero-select" type="button">
+          <svg class="sel-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 7 9 18.5 3.5 13"/></svg>
+          <span class="sel-off">Select this saree</span>
+          <svg class="sel-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          <span class="sel-on">Selected</span>
+        </button>
+      </div>
+
+      <!-- The rail: the same rack this app already had, turned vertical for
+           the hero layout. Add and remove work exactly as they did. -->
+      <div id="garments" class="rail-wrap"></div>
     </div>
   </section>
 
-  <section id="shelf">
-    <h2 class="step-h" id="shelf-h"><span class="num">2</span> Choose what to try on</h2>
+  <!-- ====================================================== step 2 ====== -->
+  <section id="you" aria-labelledby="you-h">
+    <h2 class="step-h" id="you-h"><span class="num">2</span> Your photograph</h2>
 
-    <!-- Kinds as tabs, not as stacked headings. Stacked, every kind added to
-         the shelf made the page taller and pushed the next step further out of
-         sight; as tabs the page is the same height with three kinds as with
-         one, and a customer looking for a shirt is not scrolling past sarees. -->
-    <div class="tabrow">
-      <div id="tabs" class="tabs" role="tablist" aria-labelledby="shelf-h"></div>
-      <!-- Adds to whichever category is open, so the garment arrives with the
-           right instruction attached rather than a guess from its filename. -->
-      <label class="btn addgarment" id="addlabel">
-        <span aria-hidden="true">+</span> <span id="addword">Add</span>
-        <input type="file" id="addfile" accept="image/jpeg,image/png,image/webp" hidden>
-      </label>
-    </div>
+    <div class="you-layout">
+      <!-- The empty state is a chooser, not a frame. A 3:4 black box reserved
+           for something that does not exist yet was costing ~300px before
+           anything real, at every size. -->
+      <div class="chooser">
+        <svg class="glyph" viewBox="0 0 40 72" aria-hidden="true">
+          <circle cx="20" cy="11" r="8"/>
+          <path d="M20 22c-7 0-12 4-12 10v14h5l2 24h10l2-24h5V32c0-6-5-10-12-10z"/>
+        </svg>
+        <p class="chooser-copy">A clear, full-length photo with your whole body showing</p>
+        <div class="chooser-acts">
+          <label class="btn primary" id="uploadlabel">Upload a photo
+            <input type="file" id="upload" accept="image/jpeg,image/png,image/webp" hidden>
+          </label>
+          <button id="start" class="btn">Take a photo</button>
+        </div>
+        <!-- The real limits, not reassuring vagueness: the panel decodes with
+             createImageBitmap, which has no HEIC, and a job is capped at 24MB
+             of JSON by the server. A customer who knows this before choosing
+             does not meet a refusal after it. -->
+        <p class="chooser-small">JPEG, PNG or WebP, up to about 15&nbsp;MB. An iPhone photo
+        may be HEIC &mdash; export it as JPEG first.</p>
+      </div>
 
-    <div id="garments" class="rack-wrap"></div>
+      <div class="frame" id="frame">
+        <video id="video" playsinline muted autoplay></video>
+        <img id="still" alt="Your photograph">
+        <!-- Corner brackets mark the capture area, matching the reference. -->
+        <div class="brackets" aria-hidden="true">
+          <span class="bracket bracket-tl"></span><span class="bracket bracket-tr"></span>
+          <span class="bracket bracket-bl"></span><span class="bracket bracket-br"></span>
+        </div>
+        <!-- The count, large and central, for the five seconds before a shot
+             is taken - visible from standing distance, not a small label. -->
+        <div id="countdown" class="countdown" aria-live="assertive" hidden
+          <span id="countNum" class="count-num"></span>
+          <span class="count-label">Get Ready!</span>
+        </div>
+        <p class="hint">Stand so all of you is in the picture</p>
+        <div class="frame-acts">
+          <button id="capture" class="btn primary">Take the photo</button>
+          <button id="cancelcam" class="btn ghost">Cancel</button>
+          <button id="retake" class="btn ghost">Use a different photo</button>
+        </div>
+      </div>
 
-    <!-- The rack scrolls sideways rather than wrapping downwards, so more
-         garments never means a taller page. The arrows exist because a
-         horizontal scroller with no visible control is invisible on a desktop
-         with no touch and no trackpad gesture. -->
-    <div class="pager">
-      <button id="prevpage" class="iconbtn" aria-label="Show earlier garments">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-      </button>
-      <p id="pagecount" class="pagecount" role="status" aria-live="polite"></p>
-      <button id="nextpage" class="iconbtn" aria-label="Show more garments">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-      </button>
+      <!-- Advice, not data: nothing here claims to measure anything, it is
+           the same guidance a fitting-room attendant would give out loud. -->
+      <ul class="tips" aria-label="Tips for a good photo">
+        <li class="tip tip-lead">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 20v-1.5C5.5 15 8 13 12 13s6.5 2 6.5 5.5V20"/><path d="M4 11l-1.4 1.4M20 11l1.4 1.4"/></svg>
+          <span><strong>Stand in the center</strong>Step back a little for a full body capture</span>
+        </li>
+        <li class="tip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7" r="3.2"/><path d="M6 20v-1c0-3.3 2.7-6 6-6s6 2.7 6 6v1"/></svg>
+          <span><strong>Stand straight</strong>Keep your full body in frame</span>
+        </li>
+        <li class="tip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.4M12 19.6V22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2 12h2.4M19.6 12H22M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/></svg>
+          <span><strong>Good lighting</strong>Face the camera</span>
+        </li>
+        <li class="tip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M5.5 5.5l13 13"/></svg>
+          <span><strong>Remove hats or large glasses</strong>For better results</span>
+        </li>
+      </ul>
     </div>
   </section>
 
-  <section id="resultpane">
-    <h2 class="step-h">Here you are</h2>
-    <div class="results">
-      <figure class="shot after">
-        <!-- Both pictures sit in the same fixed 2:3 box, so the two cards are
-             the same size and line up whatever shape either photograph is. -->
-        <span class="shot-wrap">
-          <img id="result" alt="You, wearing the garment you chose" data-view="after">
-          <button id="expand" class="iconbtn onshot onshot-l" aria-label="View full screen and zoom">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="m20 4-7 7"/><path d="m4 20 7-7"/>
-            </svg>
-          </button>
-          <button id="save" class="iconbtn onshot" aria-label="Save this photo to your device">
-            <svg class="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M4.5 17.5V19a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-1.5"/>
-            </svg>
-            <svg class="i-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m5 12.5 4.5 4.5L19 7.5"/>
-            </svg>
-          </button>
-        </span>
-        <figcaption>Wearing it</figcaption>
-        <p id="provenance" class="provenance"></p>
-      </figure>
-      <figure class="shot before">
-        <span class="shot-wrap">
-          <img id="before" alt="The photograph you gave" data-view="before">
-        </span>
-        <figcaption>Your photo</figcaption>
-      </figure>
+  <!-- ====================================================== step 3 ====== -->
+  <section id="resultpane" aria-labelledby="result-h">
+    <h2 class="step-h" id="result-h"><span class="num">3</span> Try it on</h2>
+
+    <div class="result-layout">
+      <!-- Which selected sarees have been tried, and which one is on screen.
+           A result is generated the first time its thumbnail is reached, not
+           all at once - the same wait screen this app already had, once per
+           saree instead of once in total. -->
+      <div class="selrail">
+        <p class="selrail-h">Selected sarees</p>
+        <div id="selrailList" class="selrail-list"></div>
+        <button id="selrailAdd" class="selrail-add" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add more</span>
+        </button>
+      </div>
+
+      <div class="results">
+        <figure class="shot after">
+          <!-- Both pictures sit in the same fixed 2:3 box, so the two cards
+               are the same size and line up whatever shape either photograph
+               is. -->
+          <span class="shot-wrap">
+            <img id="result" alt="You, wearing the saree you chose" data-view="after">
+            <button id="expand" class="iconbtn onshot onshot-l" aria-label="View full screen and zoom">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="m20 4-7 7"/><path d="m4 20 7-7"/>
+              </svg>
+            </button>
+            <button id="save" class="iconbtn onshot" aria-label="Save this photo to your device">
+              <svg class="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M4.5 17.5V19a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-1.5"/>
+              </svg>
+              <svg class="i-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m5 12.5 4.5 4.5L19 7.5"/>
+              </svg>
+            </button>
+          </span>
+          <figcaption>Wearing it</figcaption>
+          <p id="provenance" class="provenance"></p>
+        </figure>
+        <figure class="shot before">
+          <span class="shot-wrap">
+            <img id="before" alt="The photograph you gave" data-view="before">
+          </span>
+          <figcaption>Your photo</figcaption>
+        </figure>
+      </div>
     </div>
   </section>
 
@@ -175,27 +260,36 @@
      below the fold, and on a kiosk out of arm's reach at the same time. -->
 <div id="act">
   <div id="chips">
-    <button class="chip" id="chip-you" aria-label="Your photograph. Touch to change it.">
-      <img id="chip-you-img" alt=""><span class="chip-glyph">1</span>
+    <button class="chip" id="chip-garment" aria-label="Your saree selection. Touch to change it.">
+      <img id="chip-garment-img" alt=""><span class="chip-glyph">1</span>
     </button>
-    <button class="chip" id="chip-garment" aria-label="The garment. Touch to change it.">
-      <img id="chip-garment-img" alt=""><span class="chip-glyph">2</span>
+    <button class="chip" id="chip-you" aria-label="Your photograph. Touch to change it.">
+      <img id="chip-you-img" alt=""><span class="chip-glyph">2</span>
     </button>
   </div>
 
-  <button id="go" class="btn primary grow" disabled>
+  <button id="goOutfit" class="btn primary grow" disabled>
+    <span class="long">Continue to Photo</span><span class="short">Continue</span>
+  </button>
+
+  <button id="go" class="btn primary grow" disabled hidden>
     <span class="long">See yourself in it</span><span class="short">Try it on</span>
   </button>
 
   <div id="resultacts">
+    <button id="chooseMore" class="btn ghost" type="button">
+      <span class="long">Choose more</span><span class="short">More</span>
+    </button>
     <button id="compare" class="btn iconbtn" aria-label="Hold to see your original photograph">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z"/>
         <circle cx="12" cy="12" r="2.9"/>
       </svg>
     </button>
-    <button id="another" class="btn primary grow">Try another</button>
-    <button id="restart" class="btn iconbtn danger back" aria-label="Back to the start - clears this screen">
+    <button id="another" class="btn primary grow">
+      <span class="long">Continue</span><span class="short">Next</span>
+    </button>
+    <button id="restart" class="btn iconbtn danger back" aria-label="Done - clears this screen">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M20 12H5"/><path d="M11.5 5.5 5 12l6.5 6.5"/>
       </svg>
@@ -235,7 +329,11 @@
   <form method="dialog">
     <h2 id="confirm-h">Remove this garment?</h2>
     <p id="confirm-what"></p>
-    <p class="confirm-note">It will go from every screen. The shop's own list is not affected.</p>
+    <!-- Set in app.js: what this actually does differs for a garment a
+         screen added versus one from the shop's own permanent shelf, and the
+         wording has to tell the truth about which one it is, not use the
+         same reassuring sentence for both. -->
+    <p id="confirm-note" class="confirm-note"></p>
     <div class="confirm-acts">
       <button value="cancel" class="btn" id="confirm-no">Keep it</button>
       <button value="go" class="btn danger-solid" id="confirm-yes">Remove</button>

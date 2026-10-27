@@ -30,7 +30,6 @@
   --s-1: 6px; --s-2: 10px; --s-3: 16px; --s-4: 24px; --s-5: 36px;
 
   --tap: 44px;        /* phone floor; the kiosk raises it to ~20mm */
-  --thumb: 158px;     /* shelf tile width, per breakpoint */
   --gutter: 16px;
   --bar-h: 56px;
   --dock-h: 88px;
@@ -130,7 +129,13 @@ h1, h2, .kicker { font-family: "Iowan Old Style", "Palatino Linotype", Palatino,
 .step[data-state="done"] .dot::after { content: "\2713"; font-size: 13px; }
 .step[data-state="done"] .step-name { color: var(--text); }
 
-#bar h1 {
+/* The brand lockup, in place of a bare heading - a gold mark the way the
+   reference uses one, kept to a line weight rather than a filled glyph so it
+   reads as a mark and not a logo asset nobody can update. */
+.brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.brand-mark { flex: none; width: 16px; height: 26px; color: var(--gold); }
+.brand-mark svg { width: 100%; height: 100%; }
+.brand-name {
   font-size: 19px; font-weight: 600; letter-spacing: -.01em;
   white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
@@ -239,31 +244,124 @@ body[data-photo="still"] #still { object-fit: contain; }
 .frame-acts .btn.ghost { background: rgba(255,255,255,.94); border-color: rgba(0,0,0,.22); color: var(--text); font-weight: 500; }
 body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, rgba(0,0,0,.75)); }
 
-/* ============================================================== shelf ===*/
-#garments { container-type: inline-size; min-height: 0; }
+/* ========================================================= saree step ===
+   A large preview - the hero - with prev/next arrows, a vertical rail of
+   thumbnails, category pills and a name card. Replaces the old rack-of-many-
+   small-tiles: the reference shows one saree looked AT, not a grid to scan,
+   and the rail is still there for anyone who wants to jump straight to one. */
+.step-top { margin-bottom: var(--s-3); }
+.step-top .step-h { margin-bottom: var(--s-3); }
 
-/* KINDS AS TABS.
-   Stacked under headings, every kind the shop added made the page taller and
-   pushed the next step further out of sight. As tabs the shelf is the same
-   height with three kinds as with one. */
-.tabrow { display: flex; align-items: flex-start; gap: var(--s-2); margin-bottom: var(--s-3); }
+/* KINDS AS PILLS.
+   The shop's real catalogue has three kinds, not the occasions ("Bridal",
+   "Festive") a reference image can show but our data has no way to back. */
+.tabrow { display: flex; align-items: flex-start; gap: var(--s-2); }
 .tabs { display: flex; gap: var(--s-2); flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
-/* Sits with the tabs because it acts on whichever one is open. Outlined, not
-   filled: adding stock is the shopkeeper's job, and the filled button on this
-   screen belongs to the customer's. */
-/* The tile and its cross are siblings, because a button cannot hold a button.
-   The wrap is what the rack lays out; the tile fills it. */
-.tile-wrap { position: relative; display: block; min-width: 0; }
-.tile-wrap .tile { width: 100%; }
+.tabs[hidden] { display: none; }
+.tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 40px; padding: 0 var(--s-3);
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--muted);
+  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+/* Selected is weight and fill, not only colour - and aria-selected carries it
+   for anyone who cannot see either. */
+.tab[aria-selected="true"] {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink); font-weight: 650;
+}
+.tab-n {
+  font-size: 11px; font-variant-numeric: tabular-nums;
+  padding: 1px 6px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted);
+}
+.tab[aria-selected="true"] .tab-n { background: rgba(255,255,255,.22); color: var(--accent-ink); }
+.addgarment {
+  flex: none; min-height: 40px; padding-inline: var(--s-3);
+  font-size: 13px; gap: 5px; border-style: dashed;
+}
+
+/* THE BROWSER: hero on top of (phone/laptop) or beside (kiosk) its rail. */
+.browse {
+  display: grid; gap: var(--s-3); min-height: 0;
+  grid-template-areas: "hero" "dots" "card" "rail";
+}
+.hero { grid-area: hero; position: relative; min-height: 0; }
+.hero-frame {
+  width: 100%; aspect-ratio: 3 / 4; border-radius: var(--r); overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+/* contain, not cover - the same choice .results already makes and says why:
+   cropping a saree photo can lose the pallu or the hem, which is the whole
+   point of looking at it here. The frame can be any shape its grid cell gives
+   it; the photo inside always keeps its own. */
+.hero-frame img { width: 100%; height: 100%; object-fit: contain; }
+/* Overlaid, not beside: on a phone there is no spare width for arrows next to
+   a hero that already wants all of it. */
+.hero-arrow {
+  position: absolute; top: 50%; translate: 0 -50%; z-index: 2;
+  background: rgba(255,255,255,.92); border-color: rgba(0,0,0,.18);
+  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 6px 16px rgba(0,0,0,.18);
+}
+.hero-arrow-l { left: var(--s-2); }
+.hero-arrow-r { right: var(--s-2); }
+.hero-arrow:disabled { opacity: 0; pointer-events: none; }
+.hero-dots { grid-area: dots; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.hero-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hair); }
+.hero-dot[data-on] { background: var(--accent); width: 18px; border-radius: 99px; }
+.hero-card {
+  grid-area: card; display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-3); border: 1px solid var(--hair); border-radius: var(--r);
+  background: var(--surface);
+}
+.hero-card-text { flex: 1 1 auto; min-width: 0; }
+.hero-name { font-size: 17px; font-weight: 600; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+.hero-kind { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.hero-select { flex: none; gap: 7px; }
+.hero-select svg { width: 18px; height: 18px; }
+.hero-select .sel-on { display: none; }
+.hero-select[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); }
+.hero-select[aria-pressed="true"] .sel-off { display: none; }
+.hero-select[aria-pressed="true"] .sel-on { display: inline-flex; align-items: center; gap: 7px; }
+
+/* THE RAIL: the same shelf this app always had, just displayed as a strip of
+   thumbnails next to the hero instead of the only view of the catalogue. */
+.rail-wrap { grid-area: rail; container-type: inline-size; min-height: 0; }
+.rail {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 84px;
+  gap: var(--s-2); padding: 5px; margin: -5px;
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+}
+.railtile-wrap { position: relative; display: block; flex: none; }
+.railtile {
+  position: relative; display: block; width: 84px; padding: 3px;
+  background: var(--surface); border: 0; border-radius: var(--r-sm); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--hair);
+  scroll-snap-align: start;
+}
+.railtile img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2); }
+/* Previewed - the hero is showing this one right now - gets a ring; selected
+   - chosen to try on - gets the tick, same construction the old tile used.
+   They are independent: a customer can preview one saree while three others
+   stay selected. */
+.railtile[aria-current="true"] { box-shadow: 0 0 0 3px var(--gold); }
+.railtile[aria-pressed="true"]::after {
+  content: "\2713"; position: absolute; top: 6px; right: 6px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700;
+  box-shadow: 0 0 0 2px var(--bg);
+}
 /* Top LEFT: the tick marking selection is top right, and a cross that removes
    sitting next to a tick that selects is a mis-tap waiting to happen. */
-.tile-wrap .drop {
-  position: absolute; top: 10px; left: 10px; z-index: 2;
-  width: 32px; height: 32px;
+.railtile-wrap .drop {
+  position: absolute; top: 4px; left: 4px; z-index: 2;
+  width: 26px; height: 26px;
   background: rgba(255,255,255,.94); border-color: rgba(0,0,0,.22); color: var(--bad);
   box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
 }
-.tile-wrap .drop svg { width: 15px; height: 15px; }
+.railtile-wrap .drop svg { width: 13px; height: 13px; }
 
 /* ----------------------------------------------------------- confirming */
 .confirm {
@@ -306,78 +404,118 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 }
 .tab[aria-selected="true"] .tab-n { background: rgba(255,255,255,.22); color: var(--accent-ink); }
 
-/* ONE ROW, SCROLLING SIDEWAYS.
-   More garments must never mean a taller page - that is the whole reason the
-   workflow would not fit a laptop. Padding, not margin, because each tile
-   carries a 4px selection ring outside its own box and a scroll container
-   clips it. */
-.rack {
-  display: grid; grid-auto-flow: column; grid-auto-columns: var(--thumb);
-  gap: var(--s-3); padding: 5px; margin: -5px;
-  overflow-x: auto; overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity; scrollbar-width: thin;
-}
-.rack .tile { scroll-snap-align: start; }
-
-.pager { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
-.pager .iconbtn { width: 38px; height: 38px; }
-.pager .iconbtn svg { width: 18px; height: 18px; }
-.pager .iconbtn:disabled { opacity: .4; cursor: default; }
-.pager .iconbtn[hidden] { display: none; }
-.pagecount {
-  font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .09em;
-  margin-left: auto;
-}
-
-/* A real button: focusable, keyboard-operable, announced as pressed. It was a
-   <figure> with a click listener, which no keyboard or screen reader could use. */
-/* The selection ring cannot sit on the photograph: measured against these
-   backdrops no accent colour reaches 3:1 on them. So the tile keeps a 5px
-   inset of GROUND colour around the image, and the ring sits outside that on
-   the ground, where it scores 9.96:1. The construction is what passes, not
-   the colour. */
-.tile {
-  position: relative; display: block; width: 100%; padding: 5px;
-  /* White, not the beige of the page. The inset is what has to be visible
-     against a mid-grey studio backdrop, and white clears it more comfortably
-     than paper does - which is also why the shelf reads as cards on a page. */
-  background: var(--surface); color: var(--text); font: inherit; text-align: left;
-  border: 0; border-radius: var(--r); cursor: pointer;
-  box-shadow: 0 0 0 1px var(--hair);
-  transition: transform .12s var(--ease), box-shadow .2s var(--ease);
-}
-.tile img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: var(--surface-2); border-radius: 11px; }
-.tile .name {
-  display: block; padding: var(--s-2); font-size: 13px; line-height: 1.35; color: var(--muted);
-  min-height: calc(var(--tap) - 8px);
-}
-.tile:active { transform: scale(.97); }
-/* Selection is shown three ways - border weight, a tick, and the name turning
-   solid - because colour alone is not an indicator anyone can rely on. */
-.tile[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--accent); }
-.tile[aria-pressed="true"] .name { color: var(--text); font-weight: 600; }
-.tile[aria-pressed="true"]::after {
-  content: "✓"; position: absolute; top: 12px; right: 12px;
-  width: 32px; height: 32px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--accent); color: var(--accent-ink); font-size: 18px; font-weight: 700;
-  box-shadow: 0 0 0 3px var(--bg);
-}
-/* Narrow: the rack still runs sideways - a phone browses a rail of clothes
-   far more naturally than it scrolls a column of them - the tiles just get
-   narrower, and the name stops reserving a two-line box it rarely fills. */
+/* Narrow: the rail runs sideways regardless of width, so there is nothing to
+   switch at a container breakpoint - only the tile size tightens a little. */
 @container (max-width: 380px) {
-  .rack { grid-auto-columns: 132px; gap: var(--s-2); }
-  .tile .name { min-height: 0; font-size: 12px; }
+  .rail { grid-auto-columns: 72px; gap: 7px; }
+  .railtile { width: 72px; }
 }
+
+/* =========================================================== your photo ==*/
+.you-layout {
+  display: grid; gap: var(--s-3);
+  grid-template-areas: "chooser" "frame" "tips";
+}
+.chooser { grid-area: chooser; }
+.frame { grid-area: frame; }
+.tips { grid-area: tips; display: grid; gap: var(--s-2); list-style: none; margin: 0; padding: 0; }
+.tip {
+  display: flex; align-items: flex-start; gap: var(--s-2);
+  padding: var(--s-2) var(--s-3); border-radius: var(--r-sm);
+  background: var(--surface); border: 1px solid var(--hair); font-size: 13px;
+}
+.tip svg { flex: none; width: 22px; height: 22px; margin-top: 1px; color: var(--muted); }
+.tip span { display: block; line-height: 1.4; }
+.tip strong { display: block; font-size: 13.5px; color: var(--text); }
+.tip span { color: var(--muted); }
+/* The lead tip - stand in the centre - is the one that matters most before a
+   kiosk capture, and it carries the accent the way the reference's does. */
+.tip-lead { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tip-lead svg { color: var(--accent-ink); }
+.tip-lead strong, .tip-lead span { color: var(--accent-ink); }
+
+/* Corner brackets mark the capture area without a solid frame competing with
+   the photograph underneath it. */
+.brackets { position: absolute; inset: var(--s-3); z-index: 1; pointer-events: none; }
+body[data-photo="still"] .brackets, body[data-photo="empty"] .brackets { display: none; }
+.bracket { position: absolute; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,.92); }
+.bracket-tl { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 8px; }
+.bracket-tr { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 8px; }
+.bracket-bl { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 8px; }
+.bracket-br { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 8px; }
+
+/* THE COUNTDOWN: five seconds, large and central, before the shot is taken. */
+#countdown {
+  position: absolute; inset: 0; z-index: 3; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(11,107,89,.42), rgba(11,107,89,.22) 70%, transparent 72%);
+}
+#countdown:not([hidden]) { display: flex; }
+.count-num {
+  width: clamp(104px, 28vw, 180px); height: clamp(104px, 28vw, 180px);
+  display: grid; place-items: center; border-radius: 50%;
+  border: 4px solid rgba(255,255,255,.92);
+  background: rgba(26,21,18,.38);
+  color: #fff; font-size: clamp(48px, 13vw, 84px); font-weight: 300; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.count-label { color: #fff; font-size: 16px; font-weight: 600; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
 
 /* ============================================================ results ===*/
+.result-layout { display: grid; gap: var(--s-3); grid-template-areas: "selrail" "results"; }
+
+/* WHICH SELECTED SAREES HAVE BEEN TRIED, AND WHICH IS ON SCREEN.
+   One card per saree chosen in step one, in that order - the numbered badge
+   never changes once set, whatever order results are generated in. Hidden
+   outright with nothing selected, which cannot happen on the way to this
+   screen but can on a restored session the shop has since emptied. */
+.selrail { grid-area: selrail; }
+.selrail-h {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--muted); margin-bottom: var(--s-2);
+}
+.selrail-list {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 72px;
+  gap: var(--s-2); overflow-x: auto; padding: 4px; margin: -4px;
+}
+.selrail-list[hidden] { display: none; }
+.selcard {
+  position: relative; display: block; width: 72px; padding: 3px;
+  background: var(--surface); border: 0; border-radius: var(--r-sm); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--hair);
+}
+.selcard img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2); }
+.selcard[aria-current="true"] { box-shadow: 0 0 0 3px var(--accent); }
+.selcard-n {
+  position: absolute; top: 6px; left: 6px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(26,21,18,.68); color: #fff; font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.selcard-done {
+  position: absolute; bottom: 6px; right: 6px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--ok); color: var(--accent-ink);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.selcard-done svg { width: 12px; height: 12px; }
+.selrail-add {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: var(--s-2); padding: 7px var(--s-3);
+  border: 1px dashed var(--line); border-radius: 999px;
+  background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+}
+.selrail-add svg { width: 16px; height: 16px; }
+
 /* Both pictures sit in the same 2:3 box, centred as a pair. The box, not the
    photograph, sets the size - so the two cards are identical whatever shape
    either image is, and a wide upload is letterboxed inside its card instead
    of making the pair lopsided. contain, never cover: cropping a try-on would
    cut off the hem or the head. */
 .results {
+  grid-area: results;
   --shot-h: 62dvh;
   display: grid; gap: var(--s-4);
   width: 100%; max-width: 940px; margin-inline: auto;
@@ -538,17 +676,26 @@ body[data-stage="working"] #wait { display: grid; }
 body[data-kiosk] #save { display: none; }
 
 /* ======================================================= stage wiring ===*/
-body[data-stage="choose"]  #resultpane { display: none; }
+/* One step is on screen at a time: choose the saree, then the photo, then
+   the result - each its own full screen, the way the reference shows them,
+   rather than the two-pane single page this app had before. */
+#you, #saree-step, #resultpane { display: none; }
+body[data-stage="choose-saree"] #saree-step { display: block; }
+body[data-stage="you"]          #you         { display: block; }
+body[data-stage="result"]       #resultpane  { display: block; }
 /* Everything else goes away: the wait is the only thing on screen. */
 body[data-stage="working"] #bar,
 body[data-stage="working"] #work,
 body[data-stage="working"] #act,
 body[data-stage="working"] #plinth { display: none; }
-body[data-stage="result"]  #you,
-body[data-stage="result"]  #shelf,
-body[data-stage="result"]  #go,
-body[data-stage="result"]  #chips { display: none; }
-body[data-stage="result"]  #resultacts { display: flex; }
+
+/* The dock's primary action changes with the step it belongs to, not a
+   second copy kept in sync with the first. */
+#goOutfit, #go, #resultacts { display: none; }
+body[data-stage="choose-saree"] #goOutfit  { display: inline-flex; }
+body[data-stage="you"]          #go        { display: inline-flex; }
+body[data-stage="result"]       #resultacts { display: flex; }
+body[data-stage="result"] #chips { display: none; }
 
 /* ============================================================ attract ===*/
 #attract {
@@ -590,16 +737,22 @@ body[data-stage="result"]  #resultacts { display: flex; }
 @media (orientation: landscape) and (max-height: 560px) {
   body { grid-template-areas: "work act"; grid-template-columns: minmax(0,1fr) clamp(140px, 22vw, 220px); grid-template-rows: 100dvh; height: 100dvh; }
   #bar { display: none; }
-  #work { overflow-y: auto; padding-top: var(--s-3); display: grid; gap: var(--s-3);
-          grid-template-columns: minmax(180px, 34%) minmax(0,1fr); align-items: start; }
+  #work { overflow-y: auto; padding-top: var(--s-3); }
   #act { flex-direction: column; align-items: stretch; justify-content: center;
          border-top: 0; border-left: 1px solid var(--hair); position: static; }
   .btn.grow { flex: none; }
   #chips { justify-content: center; }
-  /* This panel scrolls, so the photograph keeps its own 3:4 and is not sized by
-     the room left - there is none to measure here. (More specific than the
-     desktop rule below, which would otherwise win on a wide short window.) */
+  /* Room is short, not narrow, so the hero and the rail sit side by side here
+     too rather than stacking the rail below a hero that already used the
+     screen's one scarce axis. */
+  .browse { grid-template-columns: minmax(0,1fr) 110px; grid-template-areas: "hero rail" "dots rail" "card rail"; align-items: start; }
+  .rail-wrap { height: 100%; }
+  .rail { grid-auto-flow: row; grid-auto-columns: unset; grid-auto-rows: 84px; height: 100%; overflow-y: auto; overflow-x: hidden; }
+  .you-layout { grid-template-columns: minmax(180px, 34%) minmax(0,1fr); grid-template-areas: "frame tips" "frame tips"; align-items: start; }
+  .chooser { grid-column: 1 / -1; }
   #work #you .frame { flex: none; width: 100%; max-width: 360px; margin: 0; }
+  .result-layout { grid-template-columns: 110px minmax(0,1fr); grid-template-areas: "selrail results"; align-items: start; }
+  .selrail-list { grid-auto-flow: row; grid-auto-columns: unset; grid-auto-rows: 84px; }
   .results { grid-template-columns: 1fr 1fr; --shot-h: calc(100dvh - 120px); }
   .shot.before { display: flex; order: -1; }
 }
@@ -608,24 +761,61 @@ body[data-stage="result"]  #resultacts { display: flex; }
    Portrait and big. Keyed on orientation because the panel is 1080 CSS px
    wide - wider than a laptop - so any width-only rule sends it to desktop. */
 @media (min-width: 760px) and (orientation: portrait) {
-  :root { --gutter: 40px; --bar-h: 92px; --dock-h: 168px; --tap: 68px; --thumb: 250px; --floor: clamp(120px, 26vh, 520px); }
+  :root { --gutter: 40px; --bar-h: 92px; --dock-h: 168px; --tap: 68px; --floor: clamp(120px, 26vh, 520px); }
   body { height: 100dvh; overflow: hidden;
          grid-template-areas: "bar" "work" "act" "plinth";
          grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h) var(--floor); }
-  #work { overflow-y: auto; overscroll-behavior: contain; }
-  #bar h1 { font-size: 30px; } .status { font-size: 17px; }
+  /* The panel does not scroll as a whole on a kiosk - each step fills #work
+     exactly, and only a rail inside it scrolls. overflow-y:auto here would
+     otherwise give overflow:auto further down nothing bounded to clip
+     against, and every "scrolling" rail would simply grow to fit its
+     content instead of scrolling at all. */
+  #work { overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #saree-step, #you, #resultpane { min-height: 0; }
+  body[data-stage="choose-saree"] #saree-step,
+  body[data-stage="you"] #you,
+  body[data-stage="result"] #resultpane { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .browse, .you-layout, .result-layout { flex: 1 1 auto; min-height: 0; }
+
+  .brand-name { font-size: 26px; } .brand-mark { width: 20px; height: 32px; } .status { font-size: 17px; }
   .step-h { font-size: 21px; } .step-h .num { width: 34px; height: 34px; font-size: 16px; }
   .btn { font-size: 19px; padding: 0 var(--s-4); } .btn.grow { max-width: 640px; margin-inline: auto; }
   #resultacts .btn { font-size: 18px; }
   #resultacts .btn.grow { flex-basis: 380px; margin-inline: 0; }
   .chip { width: 72px; height: 72px; }
-  .tile .name { font-size: 16px; padding: var(--s-3); }
   #plinth { grid-area: plinth; }
+
+  /* Hero on the left, a tall vertical rail on the right - the split the
+     reference itself uses, even though its own frame is portrait. A kiosk
+     panel is tall enough to give the rail real height to scroll in. */
+  .browse { grid-template-columns: minmax(0, 1fr) 150px; grid-template-rows: minmax(0,1fr) auto auto; grid-template-areas: "hero rail" "dots rail" "card rail"; gap: var(--s-3); align-items: stretch; }
+  /* The row is now explicitly bounded by grid-template-rows above, so a
+     height:100% here no longer depends on its own content to resolve - the
+     earlier spill-over-the-pills bug came from the row NOT being bounded. The
+     frame fills the whole cell, whatever shape that is; object-fit:contain on
+     its image (set once, above) is what keeps the garment's own shape and
+     stops it being cropped - the frame does not need to match that shape
+     itself any more. */
+  .hero { min-height: 0; min-width: 0; }
+  .hero-frame { width: 100%; height: 100%; }
+  .rail-wrap { height: 100%; min-height: 0; }
+  .rail { grid-auto-flow: row; grid-auto-columns: unset; grid-auto-rows: 150px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 5px; }
+  .railtile { width: 100%; }
+  .hero-name { font-size: 20px; } .hero-kind { font-size: 14px; }
+
+  .you-layout { grid-template-columns: minmax(260px, 36%) minmax(0,1fr); grid-template-areas: "frame tips" "chooser tips"; gap: var(--s-4); align-items: start; }
+  .chooser { grid-area: chooser; margin-block: auto; }
+  .frame { grid-area: frame; width: min(100%, calc(52dvh * 3 / 4)); margin-inline: auto; }
+  .tips { grid-area: tips; align-self: center; gap: var(--s-3); }
+  .tip { padding: var(--s-3); font-size: 15px; }
+  .tip strong { font-size: 16px; }
+
+  .result-layout { grid-template-columns: 150px minmax(0,1fr); grid-template-areas: "selrail results"; gap: var(--s-4); align-items: start; }
+  .selrail { height: 100%; display: flex; flex-direction: column; }
+  .selrail-list { grid-auto-flow: row; grid-auto-columns: unset; grid-auto-rows: 150px; overflow-y: auto; min-height: 0; flex: 1 1 auto; }
+  .selcard { width: 100%; }
   /* Side by side here too: a customer comparing herself with the result needs
      both in view, and this screen is wide enough to give each a real size. */
-  /* The photograph at its own 3:4, no taller than about half the screen -
-     at full width it was 1300px tall and pushed everything off the panel. */
-  #you .frame { width: min(100%, calc(52dvh * 3 / 4)); margin-inline: auto; }
   .results { grid-template-columns: 1fr 1fr; max-width: 1000px;
              --shot-h: calc(100dvh - var(--bar-h) - var(--dock-h) - var(--floor) - 190px); }
   .shot.before { display: flex; order: -1; }
@@ -636,56 +826,61 @@ body[data-stage="result"]  #resultacts { display: flex; }
 
 /* ============================================================ desktop ===*/
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  /* Bigger tiles, not more of them: a rack that scrolls sideways spends spare
-     width on the picture instead of on a fourth column.
-     Capped against viewport HEIGHT, because a 1366x768 SCREEN is not a
+  /* Capped against viewport HEIGHT, because a 1366x768 SCREEN is not a
      1366x768 window - Chrome's tab strip, address bar and bookmarks take
-     about 120px, leaving roughly 640 to draw in. At a fixed 224 the shelf
-     needed 526px of a 492px row and the dock covered the bottom of it. */
-  :root { --gutter: clamp(24px, 4vw, 64px); --thumb: clamp(140px, 26vh, 224px); --dock-h: 84px; }
+     about 120px, leaving roughly 640 to draw in. */
+  :root { --gutter: clamp(24px, 4vw, 64px); --dock-h: 84px; }
   body { height: 100dvh; overflow: hidden;
          grid-template-rows: var(--bar-h) minmax(0,1fr) var(--dock-h); }
-  #work {
-    display: grid; gap: var(--s-5); align-items: start;
-    grid-template-columns: minmax(320px, 32vw) minmax(0, 1fr);
-    grid-template-areas: "you shelf";
-    overflow: hidden; padding-bottom: var(--s-4);
-  }
+  #work { overflow: hidden; padding-bottom: var(--s-4); display: flex; flex-direction: column; min-height: 0; }
   /* The stepper only earns its room where there is room: a laptop bar has it,
      a phone bar does not and the workflow there is one task at a time anyway. */
   .steps { display: flex; }
-  #you { grid-area: you; align-self: stretch; min-height: 0; display: flex; flex-direction: column; }
-  /* No vertical scroll of its own any more. The rack runs sideways, so the
-     shelf is the same height whether the shop stocks three garments or sixty -
-     which is what makes the whole workflow fit a 768px laptop without the page
-     moving. min-height:0 because a grid child will not shrink below content
-     without it, and that alone used to push the dock off the bottom. */
-  #shelf { grid-area: shelf; min-height: 0; display: flex; flex-direction: column; }
-  /* The rack takes the room between the tabs and the arrows and centres
-     itself in it, so a short rack does not leave a hole under the tabs with
-     the controls stranded at the bottom of the screen. */
-  #shelf #garments { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; }
-  #shelf .rack { width: 100%; }
-  #shelf .pager { margin-top: 0; padding-top: var(--s-2); }
-  /* The left column has the same room and should use it: the chooser grew a
-     dashed box the height of its text and left a third of the panel empty. */
-  /* Centred in the leftover room rather than stretched to fill it: a dashed
-     box blown up to 500px tall is a bigger hole than the one it was covering. */
-  #you .chooser { margin-block: auto; }
-  /* Sized by the room left, not by its own width. It used to be width:auto
-     with auto side margins, and an element whose only content is positioned
-     has no width of its own - so in this column it came out 2px wide and the
-     photograph a customer had just taken or uploaded was simply not there. */
-  #you .frame { flex: 1 1 0; min-height: 0; width: auto; align-self: center; margin: auto 0; }
-  #resultpane { grid-area: 1 / 1 / 2 / 3; overflow-y: auto; max-height: 100%; }
-  .results { grid-template-columns: 1fr 1fr; align-items: start; }
+
+  #saree-step, #you, #resultpane { min-height: 0; flex: 1 1 auto; display: none; }
+  body[data-stage="choose-saree"] #saree-step,
+  body[data-stage="you"] #you,
+  body[data-stage="result"] #resultpane { display: flex; flex-direction: column; }
+  /* No dots row here: the rail is already a full column of direct access to
+     every saree at this width, so the dots were a second, smaller way to do
+     the same thing - and on a 768px-tall window that room is worth more spent
+     on the photograph itself. */
+  .browse { flex: 1 1 auto; min-height: 0; grid-template-columns: minmax(0, 1fr) clamp(120px, 14vh, 190px); grid-template-rows: minmax(0,1fr) auto; grid-template-areas: "hero rail" "card rail"; gap: var(--s-3); }
+  .hero-dots { display: none; }
+  /* The frame fills its cell, whatever shape a wide short window gives it;
+     object-fit:contain on its image (set once, above) is what keeps the
+     garment's own shape and stops it being cropped - the frame does not need
+     to match that shape itself. */
+  .hero { min-height: 0; min-width: 0; }
+  .hero-frame { width: 100%; height: 100%; }
+  .rail-wrap { height: 100%; }
+  .rail { grid-auto-flow: row; grid-auto-columns: unset; grid-auto-rows: clamp(100px, 14vh, 170px); height: 100%; overflow-y: auto; overflow-x: hidden; }
+  .railtile { width: 100%; }
+  /* Tightened: on a short window the heading, the pills and the name card
+     were each keeping their phone-sized padding, which adds up to real height
+     the photograph could be using instead. */
+  .step-top { margin-bottom: var(--s-2); }
+  .step-top .step-h { margin-bottom: var(--s-2); font-size: 17px; }
+  .tab { min-height: 34px; font-size: 13px; }
+  .hero-card { padding: var(--s-2) var(--s-3); gap: var(--s-2); }
+  .hero-name { font-size: 15px; }
+  .hero-kind { font-size: 12px; margin-top: 1px; }
+  .hero-select { min-height: 40px; font-size: 14px; }
+
+  .you-layout { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(320px, 32vw) minmax(0, 1fr); grid-template-areas: "frame tips" "chooser tips"; gap: var(--s-5); align-items: start; }
+  .chooser { grid-area: chooser; min-height: 0; justify-content: center; margin-block: auto; }
+  .frame { grid-area: frame; max-width: 100%; }
+  .tips { grid-area: tips; align-self: center; }
+
+  .result-layout { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: clamp(110px, 12vw, 160px) minmax(0, 1fr); grid-template-areas: "selrail results"; gap: var(--s-5); align-items: stretch; }
+  .selrail { height: 100%; display: flex; flex-direction: column; }
+  .selrail-list { grid-auto-flow: row; grid-auto-columns: unset; grid-auto-rows: clamp(100px, 12vh, 150px); overflow-y: auto; min-height: 0; flex: 1 1 auto; }
+  .selcard { width: 100%; }
+  .results { grid-template-columns: 1fr 1fr; align-items: start; --shot-h: calc(100dvh - var(--bar-h) - var(--dock-h) - 110px); }
   .shot.before { display: flex; order: -1; }
-  .results { --shot-h: calc(100dvh - var(--bar-h) - var(--dock-h) - 110px); }
   #act { justify-content: flex-end; }
   #act #chips { margin-right: auto; }
   .btn.grow { flex: none; min-width: 260px; }
-  .frame { max-width: 100%; }
-  .chooser { flex: 1 1 auto; min-height: 0; justify-content: center; }
 }
 
 /* A dock this narrow needs the shorter label. */
@@ -695,9 +890,10 @@ body[data-stage="result"]  #resultacts { display: flex; }
      the icons read as a set rather than as three unrelated controls. */
   #resultacts { gap: var(--s-2); }
   #resultacts .btn.grow { flex: 1 1 auto; }
-  /* The title truncated to "See you..." tells nobody anything, and on a phone
-     the customer already knows what they opened. The status earns the room. */
-  #bar h1 { display: none; }
+  /* The brand name truncated to "Digital T..." tells nobody anything, and on
+     a phone the customer already knows what they opened. The status earns
+     the room. */
+  .brand-name { display: none; }
   .chooser { padding: var(--s-3); gap: var(--s-2); min-height: 0; }
   .chooser .glyph { width: 22px; height: 40px; }
   /* Two chips plus a button is tight at 390px; the chips are the first to go

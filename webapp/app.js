@@ -1,15 +1,22 @@
 // The kiosk.
 //
-// Two attributes on <body> drive everything: data-stage (attract | choose |
-// working | result) and data-photo (empty | live | still). CSS reacts to them,
-// so there is no show/hide scattered through here and no state that exists
-// only in a class name somewhere.
+// Three things on <body> drive everything: data-stage (attract | choose-saree
+// | you | working | result), data-photo (empty | live | still) and
+// data-view (which selected saree's result is on screen). CSS reacts to
+// them, so there is no show/hide scattered through here and no state that
+// exists only in a class name somewhere.
 //
 // It knows nothing about extensions, tabs or generators. It asks
 // tryon-client.js for a picture and shows what comes back.
+//
+// The journey is choose-the-saree, then the photograph, then the result -
+// that order, not the reverse this app used to have - because the reference
+// this was redesigned against is unambiguous about it and a kiosk customer
+// arrives with no saree picked yet, so browsing first is the natural thing to
+// let her do before asking her to pose for anything.
 
-import { GARMENT_KINDS, DEFAULT_KIND, promptFor } from "../src/prompt.js";
-import { available, garments, generate, addGarment, dropGarment,
+import { GARMENT_KINDS, DEFAULT_KIND, kindOf, promptFor } from "../src/prompt.js";
+import { available, garments, generate, addGarment, dropGarment, dropLibraryGarment,
          history as listHistory, historyPicture, clearHistory } from "./tryon-client.js";
 import { progressAt } from "./progress.js";
 import { saveResult, clearResult, loadResult } from "./session.js";
@@ -21,17 +28,23 @@ const el = {
   frame: $("frame"), video: $("video"), still: $("still"),
   start: $("start"), capture: $("capture"), retake: $("retake"),
   cancelcam: $("cancelcam"), upload: $("upload"),
-  garmentsBox: $("garments"), go: $("go"),
-  tabs: $("tabs"), pagecount: $("pagecount"),
+  countdown: $("countdown"), countNum: $("countNum"),
+  tabs: $("tabs"),
   addfile: $("addfile"), addlabel: $("addlabel"), addword: $("addword"),
-  confirm: $("confirm"), confirmWhat: $("confirm-what"),
-  prevpage: $("prevpage"), nextpage: $("nextpage"),
+  confirm: $("confirm"), confirmWhat: $("confirm-what"), confirmNote: $("confirm-note"),
   steps: $("steps"),
+  heroImg: $("heroImg"), heroDots: $("heroDots"),
+  heroPrev: $("heroPrev"), heroNext: $("heroNext"),
+  heroName: $("heroName"), heroKind: $("heroKind"), heroSelect: $("heroSelect"),
+  garmentsBox: $("garments"),
+  goOutfit: $("goOutfit"), go: $("go"),
   chipYou: $("chip-you"), chipYouImg: $("chip-you-img"),
   chipGarment: $("chip-garment"), chipGarmentImg: $("chip-garment-img"),
   waitnote: $("waitnote"), waitsub: $("waitsub"), lottie: $("lottie"),
   pct: $("pct"), meter: $("meter"), meterfill: $("meterfill"),
   result: $("result"), before: $("before"), provenance: $("provenance"),
+  selrailList: $("selrailList"), selrailAdd: $("selrailAdd"),
+  chooseMore: $("chooseMore"),
   compare: $("compare"), save: $("save"), another: $("another"), restart: $("restart"),
   attract: $("attract"), begin: $("begin"),
   expand: $("expand"), viewer: $("viewer"), vStage: $("v-stage"), vImg: $("v-img"),
@@ -51,15 +64,30 @@ const KIOSK =
   new URLSearchParams(location.search).has("kiosk") ||
   window.matchMedia("(min-width: 760px) and (orientation: portrait)").matches;
 
-// Which kind of garment the rack is showing. Null until the shelf arrives,
-// then the first kind that actually has something on it - never a tab that
-// opens onto nothing.
-let activeKind = null;
+// Which kind of garment the pills and hero are showing. "all" is its own
+// value, not one of GARMENT_KINDS, so a customer who does not think in our
+// categories does not have to pick one.
+const ALL = "all";
+let activeKind = ALL;
+
+// Where the hero is pointed, as an index into the CURRENTLY FILTERED list -
+// not an id - because the prev/next arrows step through whatever the pills
+// are showing right now.
+let previewIndex = 0;
 
 let stream = null;
 let person = null;      // data URL
-let garment = null;     // { id, kind, name, dataUrl }
-let shelf = [];
+let shelf = [];          // every garment the server currently offers
+
+// Chosen sarees, in the order they were chosen - the order the result rail
+// numbers them in. Each entry is the full garment record (id, kind, name,
+// dataUrl) so a result can still be generated after the shelf itself moves on.
+let selected = [];
+// What each chosen saree turned into, keyed by garment id. A garment with no
+// entry here has not been generated yet.
+let results = new Map();   // id -> { image, notes }
+let activeId = null;       // which selected saree's result is on screen
+
 let ready = false;
 let lastDiagnostic = "nothing has gone wrong yet.";
 
@@ -159,96 +187,206 @@ function dropPhoto() {
   refresh();
 }
 
-// ----------------------------------------------------------------- shelf
-
-// The shelf: one kind at a time, in a rack that scrolls sideways.
+// --------------------------------------------------------------- countdown
 //
-// It used to stack every kind down the page under its own heading, so each
-// kind the shop added made the page taller and pushed the next step further
-// out of sight. Tabs keep the page the same height whatever is on the shelf,
-// and a customer looking for a shirt never scrolls past the sarees.
+// Five seconds, large and central, before the frame is actually taken - the
+// reference shows this prominently and nothing in the existing capture logic
+// changes underneath it: the same canvas grab this app already did fires once
+// the count reaches zero instead of the instant "Take the photo" was pressed.
+
+let countTimer = null;
+
+function cancelCountdown() {
+  clearInterval(countTimer);
+  countTimer = null;
+  el.countdown.hidden = true;
+  el.capture.disabled = false;
+}
+
+function runCountdown(onDone) {
+  let n = 5;
+  el.countdown.hidden = false;
+  el.countNum.textContent = String(n);
+  el.capture.disabled = true;
+  countTimer = setInterval(() => {
+    n -= 1;
+    if (n <= 0) {
+      cancelCountdown();
+      onDone();
+      return;
+    }
+    el.countNum.textContent = String(n);
+  }, 1000);
+}
+
+// ----------------------------------------------------------------- shelf
+//
+// THE CATALOGUE: PILLS, A HERO, AND A RAIL.
+//
+// One saree shown large at a time - the hero - with prev/next arrows and a
+// vertical rail of thumbnails either side by side with it. Both move the same
+// state: which item in the currently filtered list is being previewed.
+// Selecting is a separate act from previewing, which is what lets a customer
+// browse past a dozen sarees while keeping the three she has already chosen.
+
+function filteredList() {
+  return activeKind === ALL ? shelf : shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === activeKind);
+}
+
+function isSelected(id) {
+  return selected.some((g) => g.id === id);
+}
+
+// Rebuilds the pills, the hero and the rail from `shelf`. Called whenever the
+// catalogue itself changes (added, removed, or the 15-second poll finding a
+// difference) - selection and preview position are both preserved across it
+// where the thing they pointed at still exists.
 function renderGarments() {
   const present = GARMENT_KINDS.filter((k) =>
     shelf.some((g) => (g.kind ?? DEFAULT_KIND) === k.id));
 
-  // Never leave the tabs pointing at a kind that is no longer stocked - the
-  // shelf is republished while the screen is open.
-  if (!present.some((k) => k.id === activeKind)) activeKind = present[0]?.id ?? null;
+  // "All" first, then each kind actually stocked. One kind is not a choice.
+  const choices = present.length > 1 ? [{ id: ALL, name: "All" }, ...present] : [];
+  if (choices.length && !choices.some((k) => k.id === activeKind)) activeKind = ALL;
 
-  // --- the tabs -----------------------------------------------------------
   el.tabs.replaceChildren();
-  // One kind is not a choice, and a single tab reads as a disabled control.
-  el.tabs.hidden = present.length < 2;
-  if (present.length > 1) {
-    for (const kind of present) {
-      const t = document.createElement("button");
-      t.type = "button";
-      t.className = "tab";
-      t.role = "tab";
-      t.id = `tab-${kind.id}`;
-      const on = kind.id === activeKind;
-      t.setAttribute("aria-selected", String(on));
-      // Roving tabindex: the tablist is one stop, and the arrows move within
-      // it. Three tabs should not be three stops on the way to the garments.
-      t.tabIndex = on ? 0 : -1;
-      t.textContent = kind.name;
-      const n = document.createElement("span");
-      n.className = "tab-n";
-      n.textContent = String(shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === kind.id).length);
-      t.appendChild(n);
-      t.addEventListener("click", () => showKind(kind.id));
-      t.addEventListener("keydown", (e) => {
-        const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-        if (!step) return;
-        e.preventDefault();
-        const i = present.findIndex((k) => k.id === activeKind);
-        const next = present[(i + step + present.length) % present.length];
-        showKind(next.id);
-        el.tabs.querySelector('[aria-selected="true"]')?.focus();
-      });
-      el.tabs.appendChild(t);
-    }
+  el.tabs.hidden = choices.length === 0;
+  for (const kind of choices) {
+    const t = document.createElement("button");
+    t.type = "button";
+    t.className = "tab";
+    t.role = "tab";
+    t.id = `tab-${kind.id}`;
+    const on = kind.id === activeKind;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+    t.textContent = kind.name;
+    const n = document.createElement("span");
+    n.className = "tab-n";
+    n.textContent = String(kind.id === ALL ? shelf.length : shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === kind.id).length);
+    t.appendChild(n);
+    t.addEventListener("click", () => showKind(kind.id));
+    t.addEventListener("keydown", (e) => {
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      const i = choices.findIndex((k) => k.id === activeKind);
+      const next = choices[(i + step + choices.length) % choices.length];
+      showKind(next.id);
+      el.tabs.querySelector('[aria-selected="true"]')?.focus();
+    });
+    el.tabs.appendChild(t);
   }
 
-  // --- the rack -----------------------------------------------------------
-  const mine = shelf.filter((g) => (g.kind ?? DEFAULT_KIND) === activeKind);
-  const rack = document.createElement("div");
-  rack.className = "rack";
-  rack.role = "tabpanel";
-  if (activeKind) rack.setAttribute("aria-labelledby", `tab-${activeKind}`);
+  const list = filteredList();
+  if (previewIndex >= list.length) previewIndex = Math.max(0, list.length - 1);
+  renderHero(list);
+  renderRail(list);
+}
 
-  for (const g of mine) {
+function showKind(id) {
+  if (id === activeKind) return;
+  activeKind = id;
+  previewIndex = 0;
+  renderGarments();
+}
+
+function renderHero(list) {
+  const g = list[previewIndex];
+  el.heroPrev.disabled = list.length < 2;
+  el.heroNext.disabled = list.length < 2;
+  if (!g) {
+    el.heroImg.removeAttribute("src");
+    el.heroImg.alt = "";
+    el.heroName.textContent = "Nothing on this rack yet";
+    el.heroKind.textContent = "";
+    el.heroSelect.disabled = true;
+    el.heroSelect.setAttribute("aria-pressed", "false");
+    el.heroDots.replaceChildren();
+    return;
+  }
+  el.heroImg.src = g.src;
+  el.heroImg.alt = g.name;
+  el.heroName.textContent = g.name;
+  el.heroKind.textContent = kindOf(g.kind ?? DEFAULT_KIND).name;
+  el.heroSelect.disabled = false;
+  const on = isSelected(g.id);
+  el.heroSelect.setAttribute("aria-pressed", String(on));
+
+  // One dot per item, capped: a shelf of sixty garments does not need sixty
+  // dots, and the rail already offers direct access to any of them.
+  el.heroDots.replaceChildren();
+  if (list.length > 1 && list.length <= 12) {
+    list.forEach((_, i) => {
+      const d = document.createElement("span");
+      d.className = "hero-dot";
+      if (i === previewIndex) d.setAttribute("data-on", "1");
+      el.heroDots.appendChild(d);
+    });
+  }
+}
+
+function heroStep(by) {
+  const list = filteredList();
+  if (list.length < 2) return;
+  previewIndex = (previewIndex + by + list.length) % list.length;
+  renderHero(list);
+  syncRailScroll();
+}
+
+function heroTo(id) {
+  const list = filteredList();
+  const i = list.findIndex((g) => g.id === id);
+  if (i === -1) return;
+  previewIndex = i;
+  renderHero(list);
+}
+
+function toggleHeroSelect() {
+  const list = filteredList();
+  const g = list[previewIndex];
+  if (!g) return;
+  if (isSelected(g.id)) {
+    selected = selected.filter((x) => x.id !== g.id);
+    results.delete(g.id);
+    if (activeId === g.id) activeId = selected[0]?.id ?? null;
+  } else {
+    selected.push({ id: g.id, kind: g.kind ?? DEFAULT_KIND, name: g.name, src: g.src });
+  }
+  renderHero(list);
+  renderRail(list);
+  renderSelRail();
+  refresh();
+}
+
+function renderRail(list) {
+  // The scrolling strip lives inside #garments (.rail-wrap), which only sets
+  // up the container query - the grid/scroll behaviour itself is on this
+  // inner element, rebuilt each time exactly as the old shelf's rack was.
+  const rail = document.createElement("div");
+  rail.className = "rail";
+  for (const g of list) {
     // A real button: focusable, operable by keyboard, announced as pressed.
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "tile";
+    b.className = "railtile";
     b.dataset.id = g.id;
-    b.setAttribute("aria-pressed", String(garment?.id === g.id));
+    const previewed = g.id === (list[previewIndex]?.id);
+    b.setAttribute("aria-current", String(previewed));
+    b.setAttribute("aria-pressed", String(isSelected(g.id)));
     const img = document.createElement("img");
     img.src = g.src;
-    // Named, not decorative. A screen reader on a shelf of empty images has
-    // nothing to choose between.
     img.alt = g.name;
     img.loading = "lazy";
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = g.name;
-    // Selection is drawn by CSS three ways - ring, tick and the name going
-    // solid - so there is nothing to add here.
-    b.append(img, name);
-    b.addEventListener("click", () => choose(g));
+    b.appendChild(img);
+    b.addEventListener("click", () => heroTo(g.id));
 
-    // Only what a screen added can be removed from a screen. The bundled
-    // shelf is in the repository, and a cross on it would promise something
-    // this button cannot do.
-    if (!String(g.id).startsWith("screen-")) {
-      rack.appendChild(b);
-      continue;
-    }
-    // A button cannot contain a button, so the cross is a sibling laid over
-    // the tile rather than a child of it.
+    // Every tile carries a cross now, bundled or screen-added - the two go to
+    // different endpoints underneath (askToRemove tells them apart), but a
+    // shopkeeper looking at the shelf has no reason to know or care which
+    // kind of garment they are looking at.
     const wrap = document.createElement("div");
-    wrap.className = "tile-wrap";
+    wrap.className = "railtile-wrap";
     const x = document.createElement("button");
     x.type = "button";
     x.className = "iconbtn drop";
@@ -256,97 +394,63 @@ function renderGarments() {
     x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
     x.addEventListener("click", (e) => { e.stopPropagation(); askToRemove(g); });
     wrap.append(b, x);
-    rack.appendChild(wrap);
+    rail.appendChild(wrap);
   }
-
-  // A rebuild is right when the shelf itself changed, but it should not also
-  // move the rack: the catalogue is re-fetched every fifteen seconds, and a
-  // customer halfway along the rack should not be sent back to the start by
-  // a poll they cannot see.
-  const was = el.garmentsBox.querySelector(".rack")?.scrollLeft ?? 0;
-  el.garmentsBox.replaceChildren(rack);
-  if (was) rack.scrollLeft = was;
-  countShelf(mine.length);
-  paintAddButton();
-  pagerState();
+  el.garmentsBox.replaceChildren(rail);
 }
 
-function showKind(id) {
-  if (id === activeKind) return;
-  activeKind = id;
-  renderGarments();
-  el.garmentsBox.querySelector(".rack")?.scrollTo({ left: 0 });
+function syncRailScroll() {
+  const list = filteredList();
+  const g = list[previewIndex];
+  if (!g) return;
+  el.garmentsBox.querySelector(`[data-id="${CSS.escape(g.id)}"]`)
+    ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
 }
 
-// The button says which rack it adds to. "Add" alone invites a shirt onto the
-// saree rack, and the kind is what decides the instruction it is sent with.
-function paintAddButton() {
-  const kind = GARMENT_KINDS.find((k) => k.id === activeKind);
-  el.addword.textContent = kind ? `Add ${kind.name.toLowerCase().replace(/,.*/, "")}` : "Add";
-  el.addlabel.setAttribute("aria-label",
-    kind ? `Add a garment to ${kind.name}` : "Add a garment");
+el.heroPrev.addEventListener("click", () => heroStep(-1));
+el.heroNext.addEventListener("click", () => heroStep(1));
+el.heroSelect.addEventListener("click", toggleHeroSelect);
+
+// ------------------------------------------------------------- selection
+//
+// THE RESULT RAIL: one entry per chosen saree, in the order chosen, numbered
+// the way the reference numbers them. A result is generated the first time
+// its entry is reached, not all at once up front - which keeps this on the
+// same single-job pipeline the app already had, just invoked once per saree
+// instead of once in total.
+
+function renderSelRail() {
+  el.selrailList.replaceChildren();
+  selected.forEach((g, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "selcard";
+    b.dataset.id = g.id;
+    const on = g.id === activeId;
+    b.setAttribute("aria-current", String(on));
+    const img = document.createElement("img");
+    img.src = g.src;
+    img.alt = g.name;
+    const badge = document.createElement("span");
+    badge.className = "selcard-n";
+    badge.textContent = String(i + 1);
+    // A quiet mark for "already tried on", distinct from the numbered badge
+    // which only ever says the order chosen.
+    if (results.has(g.id)) {
+      const tick = document.createElement("span");
+      tick.className = "selcard-done";
+      tick.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+      b.appendChild(tick);
+    }
+    b.append(img, badge);
+    b.addEventListener("click", () => showResult(g.id));
+    el.selrailList.appendChild(b);
+  });
+  el.selrailList.hidden = selected.length === 0;
 }
 
-function countShelf(n) {
-  const kind = GARMENT_KINDS.find((k) => k.id === activeKind);
-  el.pagecount.textContent = !n
-    ? "Nothing on this rack yet"
-    : `${n} ${kind ? kind.name.toLowerCase() : "garments"}`;
-}
-
-// The arrows are only useful while there is somewhere to go, and a dead
-// control a customer can still press is worse than one that is plainly spent.
-function pagerState() {
-  const rack = el.garmentsBox.querySelector(".rack");
-  if (!rack) return;
-  const over = rack.scrollWidth - rack.clientWidth;
-  const at = rack.scrollLeft;
-  const spare = over > 4;
-  el.prevpage.disabled = !spare || at <= 2;
-  el.nextpage.disabled = !spare || at >= over - 2;
-  // Hidden entirely when everything already fits: two permanently dead arrows
-  // read as something broken.
-  el.prevpage.hidden = el.nextpage.hidden = !spare;
-}
-
-const nudge = (by) => {
-  const rack = el.garmentsBox.querySelector(".rack");
-  if (!rack) return;
-  // A tile and a bit, so something new is always half in view to be reached for.
-  const tile = rack.querySelector(".tile")?.getBoundingClientRect().width ?? 160;
-  rack.scrollBy({ left: by * (tile + 12) * 2, behavior: "smooth" });
-};
-el.prevpage.addEventListener("click", () => nudge(-1));
-el.nextpage.addEventListener("click", () => nudge(1));
-el.garmentsBox.addEventListener("scroll", pagerState, { capture: true, passive: true });
-addEventListener("resize", pagerState, { passive: true });
-
-
-async function choose(g) {
-  const src = g.src;
-  garment = {
-    id: g.id,
-    kind: g.kind ?? DEFAULT_KIND,
-    name: g.name,
-    dataUrl: src.startsWith("data:") ? src : await urlToDataUrl(src),
-  };
-  el.chipGarmentImg.src = src;
-  el.chipGarment.dataset.filled = "1";
-  // NOT a rebuild. Choosing changes one attribute on one tile, and rebuilding
-  // the rack to express that threw away the scroll position with it - so
-  // picking the ninth saree snapped the rack back to the first and the
-  // customer lost the one they had just chosen. It also destroyed the button
-  // under the pointer, which takes the keyboard's focus with it.
-  markChosen();
-  refresh();
-}
-
-// Selection, written onto the tiles already on screen.
-function markChosen() {
-  for (const t of el.garmentsBox.querySelectorAll(".tile")) {
-    t.setAttribute("aria-pressed", String(t.dataset.id === garment?.id));
-  }
-}
+el.selrailAdd.addEventListener("click", () => goToStep("choose-saree"));
+el.chooseMore.addEventListener("click", () => goToStep("choose-saree"));
 
 const urlToDataUrl = async (url) =>
   new Promise(async (ok) => {
@@ -408,7 +512,15 @@ function playSewing() {
 }
 
 function refresh() {
-  el.go.disabled = !(person && garment && ready);
+  el.goOutfit.disabled = selected.length === 0;
+  el.go.disabled = !(person && selected.length && ready);
+  if (selected[0]) {
+    el.chipGarmentImg.src = selected[0].src;
+    el.chipGarment.dataset.filled = "1";
+  } else {
+    el.chipGarmentImg.removeAttribute("src");
+    delete el.chipGarment.dataset.filled;
+  }
   paintSteps();
 }
 
@@ -421,19 +533,20 @@ function refresh() {
 // the same fact to anyone who cannot see one.
 function paintSteps() {
   const at = body.dataset.stage === "result" ? "review"
-           : !person ? "photo"
-           : !garment ? "outfit"
-           : "review";
+           : body.dataset.stage === "you" ? "photo"
+           : "outfit";
   const state = {
+    outfit: !selected.length ? "Needed"
+          : selected.length === 1 ? selected[0].name
+          : `${selected.length} selected`,
     photo: person ? "Added" : "Needed",
-    outfit: garment ? garment.name : "Needed",
-    review: person && garment
+    review: selected.length && person
       ? (body.dataset.stage === "result" ? "Done" : "Ready")
       : "Waiting",
   };
   for (const li of el.steps.querySelectorAll(".step")) {
     const id = li.dataset.step;
-    const done = (id === "photo" && person) || (id === "outfit" && garment)
+    const done = (id === "outfit" && selected.length) || (id === "photo" && person)
               || (id === "review" && body.dataset.stage === "result");
     li.dataset.state = done ? "done" : id === at ? "now" : "todo";
     if (id === at) li.setAttribute("aria-current", "step");
@@ -442,7 +555,17 @@ function paintSteps() {
   }
 }
 
-async function run() {
+function goToStep(s) {
+  if (s === "choose-saree") { stage("choose-saree"); return; }
+  if (s === "you") { stage("you"); return; }
+}
+
+// Generates the picture for ONE selected saree, by id. Reuses the single
+// full-screen wait this app already had - the only thing that changes with
+// multiple sarees is that this can be called more than once in a visit.
+async function runFor(id) {
+  const g = selected.find((x) => x.id === id);
+  if (!g) return;
   let started = false;
   stage("working");
   playSewing();
@@ -450,11 +573,12 @@ async function run() {
   el.waitnote.textContent = "Making your picture";
   el.waitsub.textContent = "This usually takes about a minute.";
   try {
+    const dataUrl = g.src.startsWith("data:") ? g.src : await urlToDataUrl(g.src);
     const { image, notes } = await generate({
       person,
-      saree: garment.dataUrl,
-      prompt: promptFor(garment.kind),
-      garment: { name: garment.name, kind: garment.kind },
+      saree: dataUrl,
+      prompt: promptFor(g.kind),
+      garment: { name: g.name, kind: g.kind },
       // The big line stays constant. The small one carries the stage, and the
       // meter's clock only starts once it is really being generated.
       onStage: (s) => {
@@ -463,22 +587,65 @@ async function run() {
           s === "noworker" ? "Waiting for the shop's computer" : "Making your picture";
         el.waitsub.textContent =
           s === "noworker" ? "Nobody there has the extension running."
-          : s === "queued" ? "Waiting its turn\u2026"
+          : s === "queued" ? "Waiting its turn…"
           : "This usually takes about a minute.";
       },
     });
     await completeMeter();
-    el.result.src = image;
-    el.before.src = person;
-    lastDiagnostic = notes.join("\n");
-    el.provenance.textContent = notes.join("\n");
-    stage("result");
-    saveResult({ person, garment, image, notes });
+    results.set(id, { image, notes });
+    showResult(id);
+    persistSession();
   } catch (e) {
     stopMeter();
     say("That didn't work. Shall we try again?", "bad", e.message);
-    stage("choose");
+    stage(selected.length ? "result" : "choose-saree");
+    if (!results.has(id)) {
+      // Nothing to show for this one - fall back to whatever IS ready, or
+      // back to choosing if nothing is.
+      const anyReady = selected.find((x) => results.has(x.id));
+      if (anyReady) showResult(anyReady.id); else stage("choose-saree");
+    }
   }
+}
+
+// Puts an already-generated result on screen, or starts generating it if this
+// is the first time it has been reached.
+function showResult(id) {
+  if (!results.has(id)) { runFor(id); return; }
+  const g = selected.find((x) => x.id === id);
+  const r = results.get(id);
+  activeId = id;
+  el.result.src = r.image;
+  el.before.src = person;
+  lastDiagnostic = r.notes.join("\n");
+  el.provenance.textContent = r.notes.join("\n");
+  renderSelRail();
+  paintContinue();
+  stage("result");
+}
+
+// "Continue" moves to the next selected saree that has not been reviewed yet
+// if there is one, or simply the next in the ring if everything has been
+// seen. With only one saree chosen there is nothing to continue TO, so the
+// control is hidden rather than offered and left dead.
+function paintContinue() {
+  el.another.hidden = selected.length < 2;
+  el.compare.hidden = false;
+}
+
+function continueToNext() {
+  if (selected.length < 2) return;
+  const i = selected.findIndex((g) => g.id === activeId);
+  const notYet = selected.find((g) => !results.has(g.id));
+  const next = notYet ?? selected[(i + 1) % selected.length];
+  showResult(next.id);
+}
+
+function persistSession() {
+  if (!person || !selected.length) return;
+  const resultsObj = {};
+  for (const [id, r] of results) resultsObj[id] = r;
+  saveResult({ person, selected, results: resultsObj, activeId });
 }
 
 // ------------------------------------------------------------------ idle
@@ -491,7 +658,7 @@ async function run() {
 const idle = {
   t: null, c: null, left: 20,
   limitFor: () =>
-    KIOSK ? ({ choose: 45000, result: 90000, working: 0, attract: 0 }[body.dataset.stage] ?? 45000) : 0,
+    KIOSK ? ({ "choose-saree": 45000, you: 45000, result: 90000, working: 0, attract: 0 }[body.dataset.stage] ?? 45000) : 0,
   restart() {
     clearTimeout(this.t); clearInterval(this.c);
     el.idlewarn.hidden = true;
@@ -515,8 +682,12 @@ function wipe() {
   el.idlewarn.hidden = true;
   clearResult();
   stopCamera();
+  cancelCountdown();
   dropPhoto();
-  garment = null;
+  selected = [];
+  results.clear();
+  activeId = null;
+  previewIndex = 0;
   el.chipGarmentImg.removeAttribute("src");
   delete el.chipGarment.dataset.filled;
   closeViewer();
@@ -528,9 +699,10 @@ function wipe() {
   el.save.classList.remove("saved");
   body.classList.remove("comparing");
   renderGarments();
+  renderSelRail();
   refresh();
   if (KIOSK) { el.attract.hidden = false; stage("attract"); }
-  else { stage("choose"); }
+  else { stage("choose-saree"); }
 }
 
 ["pointerdown", "keydown"].forEach((ev) =>
@@ -539,14 +711,18 @@ function wipe() {
 // ---------------------------------------------------------------- wiring
 
 el.start.addEventListener("click", startCamera);
-el.cancelcam.addEventListener("click", () => { stopCamera(); photo(person ? "still" : "empty"); });
+el.cancelcam.addEventListener("click", () => { stopCamera(); cancelCountdown(); photo(person ? "still" : "empty"); });
 el.capture.addEventListener("click", () => {
   const w = el.video.videoWidth, h = el.video.videoHeight;
   if (!w) return say("The camera hasn't started yet - one moment.", "warn", "videoWidth was 0");
-  keepPhoto(toDataUrl(el.video, w, h, true));
-  stopCamera();
+  runCountdown(() => {
+    const w2 = el.video.videoWidth, h2 = el.video.videoHeight;
+    if (!w2) return say("The camera stopped - one moment and try again.", "warn", "videoWidth was 0 at capture");
+    keepPhoto(toDataUrl(el.video, w2, h2, true));
+    stopCamera();
+  });
 });
-el.retake.addEventListener("click", () => { dropPhoto(); });
+el.retake.addEventListener("click", () => { cancelCountdown(); dropPhoto(); });
 // Refusals that say which rule was broken. "That did not work" sends somebody
 // back to the same file; naming HEIC, or the size, tells them what to do next.
 const TOO_BIG = 15 * 1024 * 1024;   // the server caps a whole job at 24MB of JSON
@@ -574,9 +750,13 @@ el.upload.addEventListener("change", async (e) => {
   bmp.close();
 });
 
-el.chipYou.addEventListener("click", () => $("you").scrollIntoView({ behavior: "smooth", block: "center" }));
-el.chipGarment.addEventListener("click", () => $("shelf").scrollIntoView({ behavior: "smooth", block: "start" }));
-el.go.addEventListener("click", run);
+el.chipGarment.addEventListener("click", () => goToStep("choose-saree"));
+el.chipYou.addEventListener("click", () => goToStep("you"));
+el.goOutfit.addEventListener("click", () => goToStep("you"));
+el.go.addEventListener("click", () => {
+  activeId = selected[0]?.id ?? null;
+  if (activeId) runFor(activeId);
+});
 
 // "Does that look like me" is the only question, and it is answered by a
 // glance at the original rather than by any amount of copy.
@@ -594,7 +774,8 @@ const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 async function save() {
   const src = el.result.getAttribute("src");
   if (!src) return;
-  const who = (garment?.name ?? "garment").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const g = selected.find((x) => x.id === activeId);
+  const who = (g?.name ?? "saree").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   const when = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, "");
   try {
     const blob = await (await fetch(src)).blob();
@@ -622,21 +803,47 @@ el.save.addEventListener("click", save);
 // Destroying something is worth one question first, and the question has to
 // name the thing - "are you sure?" is not an answerable question when there
 // are nine sarees on the rack.
+//
+// Two very different things happen underneath depending on where a garment
+// came from, and the dialog says which one is about to happen rather than
+// using the same reassuring sentence for both: one of these can be undone by
+// adding the garment again, the other removes a line and a file from the
+// repository and needs the control key, the same as flipping the API switch.
 async function askToRemove(g) {
+  const fromScreen = String(g.id).startsWith("screen-");
   el.confirmWhat.textContent = g.name;
+  el.confirmNote.textContent = fromScreen
+    ? "It will go from every screen. The shop's own list is not affected."
+    : "This is on the shop's own permanent shelf. Removing it takes the file and its line in the catalogue - every screen loses it immediately, and it does not come back on its own.";
   el.confirm.showModal();
   const how = await new Promise((done) =>
     el.confirm.addEventListener("close", () => done(el.confirm.returnValue), { once: true }));
   if (how !== "go") return;
   try {
-    await dropGarment(g.id);
-    if (garment?.id === g.id) garment = null;
+    // Visible from every screen right away either way. `persisted` only says
+    // whether that is permanent or whether it returns after a restart -
+    // worth knowing, since a shopkeeper who removed something by mistake and
+    // watched it "come back" tomorrow deserves to know why.
+    const persisted = fromScreen ? true : (await dropLibraryGarment(g.id, keyOf())).persisted;
+    if (fromScreen) await dropGarment(g.id);
+
+    selected = selected.filter((x) => x.id !== g.id);
+    results.delete(g.id);
     shelf = await garments();
     renderGarments();
+    renderSelRail();
     refresh();
-    say(`Removed ${g.name}.`, "ready");
+    say(persisted
+      ? `Removed ${g.name}.`
+      : `Removed ${g.name} from every screen, but could not write it to the shop's own list - it may return after a restart.`,
+      persisted ? "ready" : "warn");
   } catch (err) {
-    say(`Could not remove it: ${err.message}`, "warn");
+    // A locked bundled-delete reads exactly like the history panel's own
+    // lock, because it is the same key - send them to where that key is
+    // already typed in, rather than building a second place to enter it.
+    say(err.locked
+      ? "This needs the control key. Open History (the clock, top right) and unlock there first."
+      : `Could not remove it: ${err.message}`, "warn");
   }
 }
 
@@ -669,14 +876,12 @@ el.addfile.addEventListener("change", async (e) => {
   bmp.close();
 
   const name = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").slice(0, 80);
-  const kind = activeKind;
+  const kind = activeKind === ALL ? DEFAULT_KIND : activeKind;
   try {
     const added = await addGarment({ kind, name, dataUrl });
     shelf = await garments();
-    // Select it: somebody who just added a saree wants to try that saree.
-    const mine = shelf.find((g) => g.id === added.id);
-    if (mine) choose(mine);
-    else renderGarments();
+    renderGarments();
+    heroTo(added.id);
     say(`Added ${name}. It stays until this server restarts - put it in the shop's own list to keep it.`, "ready");
   } catch (err) {
     say(`Could not add that: ${err.message}`, "warn");
@@ -688,9 +893,9 @@ const compareOff = () => body.classList.remove("comparing");
 ["pointerdown"].forEach((e) => el.compare.addEventListener(e, compareOn));
 ["pointerup", "pointerleave", "pointercancel"].forEach((e) => el.compare.addEventListener(e, compareOff));
 
-el.another.addEventListener("click", () => { clearResult(); garment = null; renderGarments(); refresh(); stage("choose"); });
+el.another.addEventListener("click", continueToNext);
 el.restart.addEventListener("click", wipe);
-el.begin.addEventListener("click", () => { el.attract.hidden = true; stage("choose"); });
+el.begin.addEventListener("click", () => { el.attract.hidden = true; stage("choose-saree"); });
 el.stay.addEventListener("click", () => idle.restart());
 el.staff.addEventListener("click", () => {
   el.debug.hidden = !el.debug.hidden;
@@ -716,7 +921,10 @@ async function check() {
     const next = await garments().catch(() => shelf);
     if (next.length !== shelf.length || next.some((g, i) => g.id !== shelf[i]?.id)) {
       shelf = next;
-      if (garment && body.dataset.stage !== "result" && !shelf.some((g) => g.id === garment.id)) garment = null;
+      // Drop any selection the shop itself removed from under us.
+      const before = selected.length;
+      selected = selected.filter((g) => shelf.some((s) => s.id === g.id));
+      if (selected.length !== before) renderSelRail();
       renderGarments();
     }
   }
@@ -725,34 +933,44 @@ async function check() {
 }
 
 // A reload on the result screen puts the result back. Only the back arrow
-// (wipe) or Try another, or the record growing stale, ends it.
+// (wipe) or Continue past everything, or the record growing stale, ends it.
 const KEEP_FOR = KIOSK ? 3 * 60 * 1000 : 6 * 60 * 60 * 1000;
 
 async function restore() {
   const saved = await loadResult(KEEP_FOR);
   if (!saved) return false;
   person = saved.person;
-  garment = saved.garment;
+  selected = saved.selected;
+  results = new Map(Object.entries(saved.results));
+  activeId = saved.activeId && results.has(saved.activeId) ? saved.activeId : selected[0]?.id;
   el.still.src = person;
   el.chipYouImg.src = person;
   el.chipYou.dataset.filled = "1";
-  el.chipGarmentImg.src = garment.dataUrl;
-  el.chipGarment.dataset.filled = "1";
   photo("still");
-  el.result.src = saved.image;
-  el.before.src = person;
-  el.provenance.textContent = (saved.notes ?? []).join("\n");
-  lastDiagnostic = (saved.notes ?? []).join("\n");
-  el.attract.hidden = true;
-  stage("result");
-  return true;
+  renderGarments();
+  renderSelRail();
+  refresh();
+  if (activeId && results.has(activeId)) {
+    const r = results.get(activeId);
+    el.result.src = r.image;
+    el.before.src = person;
+    el.provenance.textContent = r.notes.join("\n");
+    lastDiagnostic = r.notes.join("\n");
+    paintContinue();
+    el.attract.hidden = true;
+    stage("result");
+    return true;
+  }
+  return false;
 }
 
 (async function boot() {
   if (KIOSK) body.dataset.kiosk = "1";
+  shelf = await garments().catch(() => []);
+  renderGarments();
   if (await restore()) { /* straight back to the picture */ }
   else if (KIOSK) { el.attract.hidden = false; stage("attract"); }
-  else { el.attract.hidden = true; stage("choose"); }
+  else { el.attract.hidden = true; stage("choose-saree"); }
   await check();
   setInterval(check, 15000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
@@ -813,7 +1031,7 @@ function showInViewer(which) {
   viewing = which;
   const src = (which === "before" ? el.before : el.result).getAttribute("src");
   el.vImg.src = src ?? "";
-  el.vImg.alt = which === "before" ? "The photograph you gave" : "You, wearing the garment you chose";
+  el.vImg.alt = which === "before" ? "The photograph you gave" : "You, wearing the saree you chose";
   el.vAfter.setAttribute("aria-pressed", String(which === "after"));
   el.vBefore.setAttribute("aria-pressed", String(which === "before"));
   zoom = { s: 1, x: 0, y: 0 };
@@ -950,7 +1168,7 @@ async function loadHistory() {
   el.hGrid.replaceChildren();
   el.hKey.hidden = true;
   el.hClear.hidden = true;
-  el.hSay.textContent = "Loading\u2026";
+  el.hSay.textContent = "Loading…";
 
   let items;
   try {
