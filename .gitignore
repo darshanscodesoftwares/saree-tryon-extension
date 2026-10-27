@@ -8,9 +8,11 @@ captures/
 certs/
 
 # Documents written for people rather than for the repository - costings,
-# proposals, anything rendered to PDF. They are regenerated from source, and
-# a binary that changes wholesale on every edit does not belong in history.
+# proposals, anything rendered to PDF or Word. They are regenerated from
+# source, and a binary that changes wholesale on every edit does not belong
+# in history.
 *.pdf
+*.docx
 
 # The API key and anything else that is per-machine and secret. The server
 # reads this when it starts; nothing in src/ ever should.
