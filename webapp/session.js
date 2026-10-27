@@ -34,7 +34,14 @@ async function run(mode, fn) {
   }
 }
 
-/** @param {{person: string, garment: object, image: string, notes: string[]}} s */
+/**
+ * One or more sarees may be selected now, each generated on its own and kept
+ * so switching between them is instant rather than a re-generation. `results`
+ * is keyed by garment id; a garment with no entry yet simply has not been
+ * tried on.
+ *
+ * @param {{person: string, selected: object[], results: Record<string, {image: string, notes: string[]}>, activeId: string}} s
+ */
 export const saveResult = (s) =>
   run("readwrite", (st) => st.put({ ...s, at: Date.now() }, KEY)).catch(() => {});
 
@@ -45,7 +52,7 @@ export const clearResult = () =>
 export async function loadResult(maxAge) {
   try {
     const s = await run("readonly", (st) => st.get(KEY));
-    if (!s?.person || !s?.image || !s?.garment) return null;
+    if (!s?.person || !s?.selected?.length || !s?.results) return null;
     if (Date.now() - s.at > maxAge) { await clearResult(); return null; }
     return s;
   } catch {
