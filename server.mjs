@@ -15,7 +15,7 @@
 // a page the camera from another machine over http - only localhost or https.
 import { createServer } from "node:http";
 import { createServer as createSecureServer } from "node:https";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { networkInterfaces } from "node:os";
@@ -76,8 +76,15 @@ let published = [];
 // republishes, so anything added here would be wiped by the next poll if the
 // two shared a variable.
 let addedHere = [];
+// BUNDLED was read from src/library.js once, when this process started, and
+// nothing short of a restart re-reads it. Deleting one permanently rewrites
+// that file on disk - but THIS process still needs to stop offering it
+// immediately, not after its next restart, so a removed id is also kept here
+// and filtered out live.
+let removedBundled = new Set();
 const catalogue = () => [
-  ...BUNDLED.map((g) => ({ id: g.id, kind: g.kind, name: g.name, src: `/${g.image}` })),
+  ...BUNDLED.filter((g) => !removedBundled.has(g.id))
+    .map((g) => ({ id: g.id, kind: g.kind, name: g.name, src: `/${g.image}` })),
   ...published,
   ...addedHere,
 ];
@@ -348,6 +355,54 @@ async function api(req, res, path) {
     // and a DELETE here must not look like it can change that.
     if (addedHere.length === before) return json(res, 404, { error: "not one of this screen's" });
     return json(res, 200, { ok: true, total: catalogue().length });
+  }
+
+  // PERMANENTLY removing a bundled garment - the ones in src/library.js, not
+  // the ones a screen added. tools/remove-garment.mjs already does this from
+  // a terminal; this is the same operation from a touchscreen, so it is
+  // behind the control key the same way flipping the route switch is. A
+  // wrong tap here is not a garment lost until the next restart, like
+  // addedHere - it is a line and a file gone from the repository itself,
+  // with no confirmation beyond whatever the screen asked before sending this.
+  const dropLib = path.match(/^\/api\/garments\/library\/([a-z0-9-]+)$/);
+  if (dropLib && req.method === "DELETE") {
+    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    const id = dropLib[1];
+    const row = BUNDLED.find((g) => g.id === id);
+    if (!row || removedBundled.has(id)) return json(res, 404, { error: "not a bundled garment" });
+    if (BUNDLED.length - removedBundled.size <= 1) {
+      return json(res, 409, { error: "that is the last bundled garment - this would empty the shelf" });
+    }
+
+    // Stop offering it THIS process, whatever happens to the disk below -
+    // that is the part a customer actually sees, and it must not depend on
+    // a filesystem write succeeding.
+    removedBundled.add(id);
+
+    // The same line-removal src/panel.js and remove-garment.mjs both use, so
+    // there is one understanding of what a row in this file looks like, not
+    // three. Best-effort: on a read-only deploy (Render's own filesystem, for
+    // one) this throws, and the garment still leaves every screen right now -
+    // it is only the PERMANENT half, surviving a restart, that did not happen.
+    let persisted = false;
+    try {
+      const LIB = join(ROOT, "src", "library.js");
+      const text = await readFile(LIB, "utf8");
+      const ROW = new RegExp(`\\{ id: "${id}"[^}]*\\},?\\n?`);
+      const m = text.match(ROW);
+      if (m) {
+        await writeFile(LIB, text.replace(m[0], ""));
+        const stillUsed = BUNDLED.some((g) => g.id !== id && g.image === row.image && !removedBundled.has(g.id));
+        const img = join(ROOT, row.image);
+        if (!stillUsed && existsSync(img)) await unlink(img);
+        persisted = true;
+      }
+    } catch (e) {
+      console.log(`  ! could not write src/library.js (${e.message}) - ${row.name} is off every screen now but will be back after a restart unless this is committed by hand`);
+    }
+
+    console.log(`  catalogue: - ${row.name} (bundled)${persisted ? ", and removed from src/library.js" : " - NOT written to disk, see above"}`);
+    return json(res, 200, { ok: true, persisted, total: catalogue().length });
   }
 
   // THE HISTORY. Behind the control key when there is one: it is a list of

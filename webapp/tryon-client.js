@@ -178,3 +178,27 @@ export async function clearHistory(key) {
   if (r.status === 403) throw locked();
   if (!r.ok) throw new Error(`could not clear the history (${r.status})`);
 }
+
+/**
+ * Permanently remove a BUNDLED garment - one in src/library.js, not one a
+ * screen added. Grouped here with the history functions rather than with
+ * dropGarment above because it shares the same control key and the same
+ * "locked" error: this is tools/remove-garment.mjs's own operation, reached
+ * from a touchscreen instead of a terminal, and it is gated the same way
+ * flipping the API/extension switch is - a wrong tap here is not a garment
+ * gone until the next restart, it is a line and a file gone from the
+ * repository itself.
+ *
+ * @returns {Promise<{ok: true, persisted: boolean, total: number}>}
+ *          `persisted` is false when the server could remove it from every
+ *          screen right now but could not write src/library.js - a read-only
+ *          deploy, say - so it will be back after a restart unless someone
+ *          commits the change by hand.
+ */
+export async function dropLibraryGarment(id, key) {
+  const r = await fetch(api(`../api/garments/library/${id}`), { method: "DELETE", headers: withKey(key) });
+  if (r.status === 403) throw locked();
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error ?? `could not remove it (${r.status})`);
+  return body;
+}

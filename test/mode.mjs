@@ -179,14 +179,44 @@ await withServer({}, async () => {
   ok("the extension republishing does not wipe it", after.includes("A test shirt"), after.join(", "));
   ok("and the extension's own still arrives", after.includes("From the extension"));
 
-  // Removing: only what a screen added. The bundled shelf is in the
-  // repository and a DELETE must not look like it can change that.
-  ok("a bundled garment cannot be deleted here",
+  // This path only ever removes what a screen added - a bundled id does not
+  // match its own route (screen-[0-9a-f]{8}) and falls through to 404 here
+  // regardless. Permanently removing a bundled one is a different, later
+  // route - /api/garments/library/:id - checked in its own block below.
+  ok("this route 404s on a bundled id rather than touching it",
      (await fetch(`${BASE}/api/garments/blush-pink`, { method: "DELETE" })).status === 404);
   ok("one added from a screen can be",
      (await fetch(`${BASE}/api/garments/${made.id}`, { method: "DELETE" })).ok);
   ok("and it leaves the shelf",
      !(await get("/api/garments")).garments.some((g) => g.id === made.id));
+});
+
+// ------------------------------------- permanently removing a bundled one
+//
+// This one actually deletes a file and rewrites src/library.js on disk, and
+// withServer spawns the real server.mjs from THIS repository - so a test that
+// actually deleted something here would permanently rewrite the committed
+// catalogue every time `npm test` runs. That is not a risk worth taking for
+// test coverage. What is safe to check without ever reaching the deletion
+// itself: that it is gated the same way the route switch is, and that a
+// garment which does not exist is refused rather than silently doing nothing.
+// The deletion, the file removal, the library.js rewrite, the "would empty
+// the shelf" guard and the live catalogue update were all checked by hand
+// against disposable copies of the project, not against this one.
+await withServer({ CONTROL_KEY: "shh" }, async () => {
+  const del = (id, key) =>
+    fetch(`${BASE}/api/garments/library/${id}`, {
+      method: "DELETE",
+      headers: key ? { "x-control-key": key } : {},
+    });
+
+  ok("locked without the key", (await del("blush-pink")).status === 403);
+  ok("locked with the wrong one", (await del("blush-pink", "nope")).status === 403);
+  ok("an unknown id is refused, not silently ignored",
+     (await del("not-a-real-garment", "shh")).status === 404);
+  // Still here: a refused request must not have touched anything.
+  ok("the shelf is unchanged by all of the above",
+     (await get("/api/garments")).garments.some((g) => g.id === "blush-pink"));
 });
 
 // ------------------------------------------------------------- locked switch
