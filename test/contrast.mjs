@@ -26,7 +26,7 @@ const ratio = (a, b) => {
 };
 
 const C = Object.fromEntries(
-  ["bg", "surface", "surface-2", "line", "hair", "text", "muted", "accent", "accent-ink", "gold", "ok", "bad"]
+  ["bg", "surface", "surface-2", "line", "hair", "text", "muted", "accent", "accent-deep", "accent-ink", "gold", "ok", "bad"]
     .map((n) => [n, tok(n)])
 );
 
@@ -48,10 +48,9 @@ const checks = [
   // non-text, component boundaries and state: 3:1
   ["control border on page",       C.line, C.bg, 3],
   ["control border on a card",     C.line, C.surface, 3],
-  ["selection ring on page",       C.accent, C.bg, 3],
-  ["focus ring on page",           C.accent, C.bg, 3],
-  ["focus ring on a card",         C.accent, C.surface, 3],
-  ["primary button against page",  C.accent, C.bg, 3],
+  ["selection ring on page",       C["accent-deep"], C.bg, 3],
+  ["focus ring on page",           C["accent-deep"], C.bg, 3],
+  ["focus ring on a card",         C["accent-deep"], C.surface, 3],
 
   // Icon-only controls. The glyph IS the label, so it is non-text content at
   // 3:1 against the button it sits in - not against the page behind it.

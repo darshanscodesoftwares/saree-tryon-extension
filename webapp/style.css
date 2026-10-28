@@ -19,11 +19,12 @@
      selection ring scores 1.18:1 to 1.55:1: the most important state in the
      app, invisible on the thing it marks. Jade clears the page ground at
      9.96:1 instead. Gold stays, but as LIGHT - see the lamp below - never ink. */
-  --accent:    #0b6b59;
-  --accent-ink:#ffffff;
-  --primary:   #0b6b59;
+  --accent:    #F5BD02;   /* the brand gold: fills, never thin lines or text on paper */
+  --accent-ink:#1a1512;   /* dark on gold - white would be 1.7:1 */
+  --accent-deep:#7a5a00;  /* the same gold deep enough to be a ring or a word on paper */
+  --primary:   #F5BD02;
   --gold:      #8a6a24;   /* the lamp, and category headings only */
-  --ok:        #0b6b59;
+  --ok:        #7a5a00;   /* ready TEXT; fills use --accent */
   --bad:       #a8301c;
 
   --r-sm: 10px; --r: 16px; --r-lg: 22px;
@@ -82,7 +83,7 @@ body::before {
 ol { padding: 0; list-style: none; }
 img, video { display: block; }
 :where(button, [href], input, label.btn, .tile, .chip):focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--accent-deep);
   outline-offset: 2px;
 }
 .step-h, .chip, .tile, .ladder, #bar { user-select: none; -webkit-user-select: none; }
@@ -132,7 +133,7 @@ h1, h2, .kicker { font-family: var(--display); }
 .step[data-state="now"] { border-color: var(--accent); background: var(--surface); }
 .step[data-state="now"] .dot { background: var(--accent); color: var(--accent-ink); }
 .step[data-state="now"] .step-name { color: var(--text); }
-.step[data-state="done"] .dot { background: var(--ok); color: var(--accent-ink); font-size: 0; }
+.step[data-state="done"] .dot { background: var(--accent); color: var(--accent-ink); font-size: 0; }
 .step[data-state="done"] .dot::after { content: "\2713"; font-size: 13px; }
 .step[data-state="done"] .step-name { color: var(--text); }
 
@@ -283,7 +284,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
   padding: 1px 6px; border-radius: 999px;
   background: var(--surface-2); color: var(--muted);
 }
-.tab[aria-selected="true"] .tab-n { background: rgba(255,255,255,.22); color: var(--accent-ink); }
+.tab[aria-selected="true"] .tab-n { background: rgba(26,21,18,.14); color: var(--accent-ink); }
 .addgarment {
   flex: none; min-height: 40px; padding-inline: var(--s-3);
   font-size: 13px; gap: 5px; border-style: dashed;
@@ -318,7 +319,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 .hero-arrow:disabled { opacity: 0; pointer-events: none; }
 .hero-dots { grid-area: dots; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .hero-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hair); }
-.hero-dot[data-on] { background: var(--accent); width: 18px; border-radius: 99px; }
+.hero-dot[data-on] { background: var(--accent-deep); width: 18px; border-radius: 99px; }
 .hero-card {
   grid-area: card; display: flex; align-items: center; gap: var(--s-3);
   padding: var(--s-3); border: 1px solid var(--hair); border-radius: var(--r);
@@ -330,7 +331,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
 .hero-select { flex: none; gap: 7px; }
 .hero-select svg { width: 18px; height: 18px; }
 .hero-select .sel-on { display: none; }
-.hero-select[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); }
+.hero-select[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
 .hero-select[aria-pressed="true"] .sel-off { display: none; }
 .hero-select[aria-pressed="true"] .sel-on { display: inline-flex; align-items: center; gap: 7px; }
 
@@ -411,7 +412,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
   padding: 1px 6px; border-radius: 999px;
   background: var(--surface-2); color: var(--muted);
 }
-.tab[aria-selected="true"] .tab-n { background: rgba(255,255,255,.22); color: var(--accent-ink); }
+.tab[aria-selected="true"] .tab-n { background: rgba(26,21,18,.14); color: var(--accent-ink); }
 
 /* Narrow: the rail runs sideways regardless of width, so there is nothing to
    switch at a container breakpoint - only the tile size tightens a little. */
@@ -457,7 +458,7 @@ body[data-photo="still"] .brackets, body[data-photo="empty"] .brackets { display
 #countdown {
   position: absolute; inset: 0; z-index: 3; display: none;
   flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2);
-  background: radial-gradient(60% 60% at 50% 50%, rgba(11,107,89,.42), rgba(11,107,89,.22) 70%, transparent 72%);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(245,189,2,.38), rgba(245,189,2,.18) 70%, transparent 72%);
 }
 #countdown:not([hidden]) { display: flex; }
 .count-num {
@@ -494,7 +495,7 @@ body[data-photo="still"] .brackets, body[data-photo="empty"] .brackets { display
   box-shadow: 0 0 0 1px var(--hair);
 }
 .selcard img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2); }
-.selcard[aria-current="true"] { box-shadow: 0 0 0 3px var(--accent); }
+.selcard[aria-current="true"] { box-shadow: 0 0 0 3px var(--accent-deep); }
 .selcard-n {
   position: absolute; top: 6px; left: 6px;
   width: 20px; height: 20px; border-radius: 50%;
@@ -506,7 +507,7 @@ body[data-photo="still"] .brackets, body[data-photo="empty"] .brackets { display
   position: absolute; bottom: 6px; right: 6px;
   width: 20px; height: 20px; border-radius: 50%;
   display: grid; place-items: center;
-  background: var(--ok); color: var(--accent-ink);
+  background: var(--accent); color: var(--accent-ink);
   box-shadow: 0 0 0 2px var(--bg);
 }
 .selcard-done svg { width: 12px; height: 12px; }
@@ -637,7 +638,7 @@ body.comparing .shot.before { display: flex; }
   display: none;
   align-content: center; justify-items: center; gap: var(--s-3);
   padding: var(--s-5); text-align: center;
-  background: radial-gradient(120% 90% at 50% 10%, #f1f6f3 0%, var(--bg) 62%);
+  background: radial-gradient(120% 90% at 50% 10%, #fbf3dc 0%, var(--bg) 62%);
 }
 body[data-stage="working"] #wait { display: grid; }
 .lottie { width: clamp(132px, 23vw, 220px); height: clamp(132px, 23vw, 220px); margin-bottom: calc(var(--s-3) * -1); }
