@@ -899,6 +899,24 @@ body[data-stage="result"] #chips { display: none; }
   /* Two chips plus a button is tight at 390px; the chips are the first to go
      small, because the button is the one that has to stay hittable. */
   .chip { width: 40px; height: 40px; }
+
+  /* PHONE: the category pills wrapped onto two rows, 140px of the screen, and
+     the hero took most of what was left - so the thumbnail rail, which is
+     where a customer switches saree, sat below the fold. One row that
+     scrolls sideways costs 40px, and a phone is already allowed to scroll
+     down; it should not have to scroll past the pills to reach the garments. */
+  /* The screen is exactly the viewport and #work scrolls inside it. Without
+     this the work area sized to its content, and the dock - sticky to the
+     bottom of the viewport - sat on top of the thumbnail rail. */
+  body { height: 100dvh; }
+  #work { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; }
+  /* The hero keeps its 3:4 shape but cannot take the whole screen: the card
+     and the rail have to stay within a short scroll of the top. contain on
+     its image means a cap costs nothing to the garment. */
+  .hero-frame { max-height: 50dvh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
