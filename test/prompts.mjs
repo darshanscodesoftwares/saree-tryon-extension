@@ -31,6 +31,15 @@ ok("the women's prompt is about the cut",
 ok("no pallu in the men's prompt",   !/pallu|saree|drape/i.test(men));
 ok("no pallu in the women's prompt", !/pallu|saree|drape/i.test(women));
 
+// A webcam or phone photo gets the extra paragraph; an upload does not.
+{
+  const cam = promptFor("saree", { casual: true });
+  ok("a camera photo adds the webcam paragraph", cam.startsWith(saree) && /webcam or a phone camera/.test(cam));
+  ok("it says to take identity from the face and the body from natural proportions",
+     /identity from the face/i.test(cam) && /Do not enlarge the head/i.test(cam));
+  ok("an upload is left exactly as it was", promptFor("saree", { casual: false }) === saree && promptFor("saree") === saree);
+}
+
 // All three must refuse flattery, which is the failure they share.
 for (const k of GARMENT_KINDS) {
   ok(`${k.id} forbids embellishing`,

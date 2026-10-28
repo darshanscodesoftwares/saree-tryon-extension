@@ -112,9 +112,26 @@ Framing: standing square to the camera, arms relaxed at the sides, plain light-g
   },
 ];
 
+// A photo taken on the kiosk itself - a laptop webcam, a phone held at arm's
+// length - is the worst input this will ever see, and it goes wrong in one
+// consistent way: the face is the sharpest, largest, best-lit thing in the
+// frame, and the body is a small, soft, badly lit afterthought. The generator
+// builds the figure around the face, so the face comes out too big and too
+// sharp for the body, and a different age or build from it. This tells it
+// what a webcam does, so it corrects for it instead of copying it.
+const CASUAL_CAPTURE = `About image 1: it was taken on a webcam or a phone camera, close up and at arm's length, so expect these faults and correct for them rather than copying them. A wide lens makes the face and shoulders look larger than the body and the legs shorter; the camera is often held low or tilted, which stretches or squashes the head. The face is sharp and well lit while the body is small, soft or partly cropped. The lighting is uneven, and the colours are shifted by the room.
+
+So: take identity from the face and nothing else - the features, the age, the hair, the skin tone. Take the body from a natural adult of the same apparent age, build and gender, standing straight, at ordinary proportions - not from the distorted shape in image 1. Do not enlarge the head to match how large the face is in image 1, and do not copy the lens distortion, the tilt, or the shadows of that room. Match the face's sharpness, grain and lighting to the rest of the picture so the head and body look photographed together, in one light, on one day. If the body is out of frame or cropped in image 1, invent a plausible one rather than stretching what is there.`;
+
 export const DEFAULT_KIND = "saree";
 
 export const kindOf = (id) =>
   GARMENT_KINDS.find((k) => k.id === id) ?? GARMENT_KINDS[0];
 
-export const promptFor = (id) => kindOf(id).prompt;
+/**
+ * `casual` is true for a picture taken by the kiosk's own camera. It adds the
+ * paragraph above after the kind's own prompt, so a photo uploaded from a
+ * studio or a good camera is not told to distrust itself.
+ */
+export const promptFor = (id, { casual = false } = {}) =>
+  casual ? `${kindOf(id).prompt}\n\n${CASUAL_CAPTURE}` : kindOf(id).prompt;

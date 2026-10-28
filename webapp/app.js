@@ -167,8 +167,13 @@ async function getCamera() {
   throw last;
 }
 
-function keepPhoto(dataUrl) {
+// "camera" for a picture the kiosk took, "upload" for a file chosen. A webcam
+// or phone shot needs the extra prompt paragraph; a good upload does not.
+let personSource = "camera";
+
+function keepPhoto(dataUrl, source = "camera") {
   person = dataUrl;
+  personSource = source;
   el.still.src = dataUrl;
   el.chipYouImg.src = dataUrl;
   el.chipYou.dataset.filled = "1";
@@ -577,7 +582,7 @@ async function runFor(id) {
     const { image, notes } = await generate({
       person,
       saree: dataUrl,
-      prompt: promptFor(g.kind),
+      prompt: promptFor(g.kind, { casual: personSource !== "upload" }),
       garment: { name: g.name, kind: g.kind },
       // The big line stays constant. The small one carries the stage, and the
       // meter's clock only starts once it is really being generated.
@@ -746,7 +751,7 @@ el.upload.addEventListener("change", async (e) => {
     return say("That file isn't a picture we can read. A JPEG, PNG or WebP works.", "warn", "createImageBitmap threw");
   }
   stopCamera();
-  keepPhoto(toDataUrl(bmp, bmp.width, bmp.height, false));
+  keepPhoto(toDataUrl(bmp, bmp.width, bmp.height, false), "upload");
   bmp.close();
 });
 
