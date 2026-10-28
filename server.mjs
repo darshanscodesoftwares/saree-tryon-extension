@@ -359,14 +359,14 @@ async function api(req, res, path) {
 
   // PERMANENTLY removing a bundled garment - the ones in src/library.js, not
   // the ones a screen added. tools/remove-garment.mjs already does this from
-  // a terminal; this is the same operation from a touchscreen, so it is
-  // behind the control key the same way flipping the route switch is. A
+  // a terminal; this is the same operation from a touchscreen. It is NOT behind
+  // the control key - the shop runs this as a demo, so any screen may delete. A
   // wrong tap here is not a garment lost until the next restart, like
   // addedHere - it is a line and a file gone from the repository itself,
   // with no confirmation beyond whatever the screen asked before sending this.
   const dropLib = path.match(/^\/api\/garments\/library\/([a-z0-9-]+)$/);
   if (dropLib && req.method === "DELETE") {
-    if (!mayControl(req)) return json(res, 403, { error: "wrong or missing control key" });
+    // No control key: this is a demo, so deleting is open to any screen.
     const id = dropLib[1];
     const row = BUNDLED.find((g) => g.id === id);
     if (!row || removedBundled.has(id)) return json(res, 404, { error: "not a bundled garment" });

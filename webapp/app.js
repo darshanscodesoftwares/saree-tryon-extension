@@ -916,7 +916,7 @@ el.save.addEventListener("click", save);
 // came from, and the dialog says which one is about to happen rather than
 // using the same reassuring sentence for both: one of these can be undone by
 // adding the garment again, the other removes a line and a file from the
-// repository and needs the control key, the same as flipping the API switch.
+// repository. There is no key for it: this is a demo.
 async function askToRemove(g) {
   const fromScreen = String(g.id).startsWith("screen-");
   el.confirmWhat.textContent = g.name;
