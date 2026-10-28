@@ -54,6 +54,8 @@ const el = {
   hKey: $("history-key"), hKeyIn: $("history-keyin"), hKeyGo: $("history-keygo"),
   hSay: $("history-say"), hGrid: $("history-grid"), hClear: $("history-clear"),
   idlewarn: $("idlewarn"), idlecount: $("idlecount"), stay: $("stay"),
+  navBack: $("navBack"), navClose: $("navClose"), waitBack: $("waitBack"), waitClose: $("waitClose"),
+  endconfirm: $("endconfirm"),
 };
 
 // An attract screen and a timeout that erases your photograph are right for a
@@ -91,7 +93,13 @@ let activeId = null;       // which selected saree's result is on screen
 let ready = false;
 let lastDiagnostic = "nothing has gone wrong yet.";
 
-const stage = (s) => { body.dataset.stage = s; paintSteps(); idle.restart(); };
+const stage = (s) => {
+  body.dataset.stage = s; paintSteps(); idle.restart();
+  // Nothing is behind the first step except the welcome screen, which only
+  // the kiosk has.
+  el.navBack.classList.toggle("at-start", s === "choose-saree");
+  persistSoon();
+};
 const photo = (p) => { body.dataset.photo = p; };
 
 // Written for a shopper. Anything that names the extension, the queue or
@@ -174,6 +182,7 @@ let personSource = "camera";
 function keepPhoto(dataUrl, source = "camera") {
   person = dataUrl;
   personSource = source;
+  results.clear();
   el.still.src = dataUrl;
   el.chipYouImg.src = dataUrl;
   el.chipYou.dataset.filled = "1";
@@ -183,6 +192,7 @@ function keepPhoto(dataUrl, source = "camera") {
 
 function dropPhoto() {
   person = null;
+  results.clear();
   // Removed, not emptied: an empty src resolves to the page URL in some
   // browsers and gets requested again.
   el.still.removeAttribute("src");
@@ -532,6 +542,7 @@ function playSewing() {
 }
 
 function refresh() {
+  persistSoon();
   el.goOutfit.disabled = selected.length === 0;
   el.go.disabled = !(person && selected.length && ready);
   if (selected[0]) {
@@ -583,9 +594,18 @@ function goToStep(s) {
 // Generates the picture for ONE selected saree, by id. Reuses the single
 // full-screen wait this app already had - the only thing that changes with
 // multiple sarees is that this can be called more than once in a visit.
+// One in flight per saree, and a counter that closing the visit bumps, so a
+// picture finishing after Close is thrown away rather than shown to the next
+// customer.
+const inflight = new Set();
+let epoch = 0;
+
 async function runFor(id) {
   const g = selected.find((x) => x.id === id);
   if (!g) return;
+  if (inflight.has(id)) { stage("working"); return; }   // already being made
+  inflight.add(id);
+  const mine = epoch;
   let started = false;
   stage("working");
   playSewing();
@@ -611,13 +631,19 @@ async function runFor(id) {
           : "This usually takes about a minute.";
       },
     });
-    await completeMeter();
+    if (mine !== epoch) return;
+    const watching = body.dataset.stage === "working";
+    if (watching) await completeMeter(); else stopMeter();
+    if (mine !== epoch) return;
     results.set(id, { image, notes });
-    showResult(id);
+    if (watching && body.dataset.stage === "working") showResult(id);
+    else { renderSelRail(); say("Your picture is ready - open 'See yourself in it'.", "ready"); }
     persistSession();
   } catch (e) {
+    if (mine !== epoch) return;
     stopMeter();
     say("That didn't work. Shall we try again?", "bad", e.message);
+    if (body.dataset.stage !== "working") return;
     stage(selected.length ? "result" : "choose-saree");
     if (!results.has(id)) {
       // Nothing to show for this one - fall back to whatever IS ready, or
@@ -625,6 +651,8 @@ async function runFor(id) {
       const anyReady = selected.find((x) => results.has(x.id));
       if (anyReady) showResult(anyReady.id); else stage("choose-saree");
     }
+  } finally {
+    inflight.delete(id);
   }
 }
 
@@ -661,11 +689,28 @@ function continueToNext() {
   showResult(next.id);
 }
 
+// Everything done so far is kept, not just a finished picture: the sarees
+// chosen, the photograph, each result and which screen was showing. Held off
+// until boot has had its chance to restore, so an empty first render cannot
+// erase what is about to be put back.
+let persistReady = false;
+let persistT = null;
+function persistSoon() {
+  if (!persistReady) return;
+  clearTimeout(persistT);
+  persistT = setTimeout(persistSession, 400);
+}
 function persistSession() {
-  if (!person || !selected.length) return;
+  clearTimeout(persistT);
+  if (!persistReady) return;
+  if (!person && !selected.length) { clearResult(); return; }
   const resultsObj = {};
   for (const [id, r] of results) resultsObj[id] = r;
-  saveResult({ person, selected, results: resultsObj, activeId });
+  const at = body.dataset.stage;
+  saveResult({
+    person, selected, results: resultsObj, activeId, source: personSource,
+    stage: at === "working" ? "you" : at,
+  });
 }
 
 // ------------------------------------------------------------------ idle
@@ -677,8 +722,10 @@ function persistSession() {
 
 const idle = {
   t: null, c: null, left: 20,
-  limitFor: () =>
-    KIOSK ? ({ "choose-saree": 45000, you: 45000, result: 90000, working: 0, attract: 0 }[body.dataset.stage] ?? 45000) : 0,
+  // Zero everywhere: nothing a customer has done is taken away by a timer.
+  // It ends when they close it (the X), and not before - a customer who stepped
+  // away to find a friend comes back to exactly where they were.
+  limitFor: () => 0,
   restart() {
     clearTimeout(this.t); clearInterval(this.c);
     el.idlewarn.hidden = true;
@@ -698,6 +745,10 @@ const idle = {
 };
 
 function wipe() {
+  epoch++;
+  inflight.clear();
+  stopMeter();
+  clearTimeout(persistT);
   clearTimeout(idle.t); clearInterval(idle.c);
   el.idlewarn.hidden = true;
   clearResult();
@@ -708,6 +759,7 @@ function wipe() {
   results.clear();
   activeId = null;
   previewIndex = 0;
+  personSource = "camera";
   el.chipGarmentImg.removeAttribute("src");
   delete el.chipGarment.dataset.filled;
   closeViewer();
@@ -774,8 +826,8 @@ el.chipGarment.addEventListener("click", () => goToStep("choose-saree"));
 el.chipYou.addEventListener("click", () => goToStep("you"));
 el.goOutfit.addEventListener("click", () => goToStep("you"));
 el.go.addEventListener("click", () => {
-  activeId = selected[0]?.id ?? null;
-  if (activeId) runFor(activeId);
+  activeId = selected.find((x) => results.has(x.id))?.id ?? selected[0]?.id ?? null;
+  if (activeId) showResult(activeId);   // shows a picture already made; makes it otherwise
 });
 
 // "Does that look like me" is the only question, and it is answered by a
@@ -915,6 +967,26 @@ const compareOff = () => body.classList.remove("comparing");
 
 el.another.addEventListener("click", continueToNext);
 el.restart.addEventListener("click", wipe);
+
+// BACK AND CLOSE. Back is always one step toward the start and never loses
+// anything: the photograph, the sarees and any finished pictures all stay.
+// Close is the only thing that ends a visit, and it asks first.
+function goBack() {
+  const s = body.dataset.stage;
+  if (s === "result") stage("you");
+  else if (s === "working") { stage("you"); say("Still making your picture - it will be here when you come back.", "ready"); }
+  else if (s === "you") { stopCamera(); cancelCountdown(); photo(person ? "still" : "empty"); stage("choose-saree"); }
+  else if (s === "choose-saree" && KIOSK) { el.attract.hidden = false; stage("attract"); }
+}
+async function askToEnd() {
+  el.endconfirm.showModal();
+  const how = await new Promise((done) =>
+    el.endconfirm.addEventListener("close", () => done(el.endconfirm.returnValue), { once: true }));
+  if (how === "go") wipe();
+}
+[el.navBack, el.waitBack].forEach((b) => b.addEventListener("click", goBack));
+[el.navClose, el.waitClose].forEach((b) => b.addEventListener("click", askToEnd));
+el.debug.addEventListener("click", () => { el.debug.hidden = true; });
 el.begin.addEventListener("click", () => { el.attract.hidden = true; stage("choose-saree"); });
 el.stay.addEventListener("click", () => idle.restart());
 el.staff.addEventListener("click", () => {
@@ -954,43 +1026,55 @@ async function check() {
 
 // A reload on the result screen puts the result back. Only the back arrow
 // (wipe) or Continue past everything, or the record growing stale, ends it.
-const KEEP_FOR = KIOSK ? 3 * 60 * 1000 : 6 * 60 * 60 * 1000;
+// A day is only a backstop for a screen nobody came back to. Nothing shorter
+// ends a visit: closing it (the X) is the way.
+const KEEP_FOR = 24 * 60 * 60 * 1000;
 
 async function restore() {
   const saved = await loadResult(KEEP_FOR);
   if (!saved) return false;
-  person = saved.person;
-  selected = saved.selected;
-  results = new Map(Object.entries(saved.results));
-  activeId = saved.activeId && results.has(saved.activeId) ? saved.activeId : selected[0]?.id;
-  el.still.src = person;
-  el.chipYouImg.src = person;
-  el.chipYou.dataset.filled = "1";
-  photo("still");
+  person = saved.person ?? null;
+  personSource = saved.source ?? "camera";
+  selected = saved.selected ?? [];
+  results = new Map(Object.entries(saved.results ?? {}));
+  activeId = saved.activeId && results.has(saved.activeId) ? saved.activeId : selected.find((x) => results.has(x.id))?.id ?? selected[0]?.id ?? null;
+  if (person) {
+    el.still.src = person;
+    el.chipYouImg.src = person;
+    el.chipYou.dataset.filled = "1";
+    photo("still");
+  }
   renderGarments();
   renderSelRail();
   refresh();
-  if (activeId && results.has(activeId)) {
+
+  let to = saved.stage ?? (activeId && results.has(activeId) ? "result" : "choose-saree");
+  if (to === "result" && !(activeId && results.has(activeId))) to = "you";
+  if (to === "you" && !selected.length) to = "choose-saree";
+  if (to === "attract" && !KIOSK) to = "choose-saree";
+  if (!["choose-saree", "you", "result", "attract"].includes(to)) to = "choose-saree";
+
+  if (to === "result") {
     const r = results.get(activeId);
     el.result.src = r.image;
     el.before.src = person;
     el.provenance.textContent = r.notes.join("\n");
     lastDiagnostic = r.notes.join("\n");
     paintContinue();
-    el.attract.hidden = true;
-    stage("result");
-    return true;
   }
-  return false;
+  el.attract.hidden = to !== "attract";
+  stage(to);
+  return true;
 }
 
 (async function boot() {
   if (KIOSK) body.dataset.kiosk = "1";
   shelf = await garments().catch(() => []);
   renderGarments();
-  if (await restore()) { /* straight back to the picture */ }
+  if (await restore()) { /* straight back to where they were */ }
   else if (KIOSK) { el.attract.hidden = false; stage("attract"); }
   else { el.attract.hidden = true; stage("choose-saree"); }
+  persistReady = true;
   await check();
   setInterval(check, 15000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });

@@ -3,10 +3,10 @@
 // hundred kilobytes each, past what localStorage will hold, so this is
 // IndexedDB - one record, replaced every time.
 //
-// It is a photograph of a stranger on a shared screen, so it has a sell-by
-// date. A kiosk's own idle timer wipes at about two minutes; if the tab was
-// closed before that could run, the record is still sitting here, and the next
-// customer must not be handed it. Expired records are deleted when found.
+// Nothing times out on its own: a visit lasts until somebody closes it. The
+// sell-by date here is only a backstop for a screen abandoned for a whole day.
+// It holds whatever has been done so far - sarees chosen, the photograph, the
+// pictures made and which screen the customer was on - not only a result.
 
 const DB = "saree-kiosk";
 const STORE = "session";
@@ -52,7 +52,7 @@ export const clearResult = () =>
 export async function loadResult(maxAge) {
   try {
     const s = await run("readonly", (st) => st.get(KEY));
-    if (!s?.person || !s?.selected?.length || !s?.results) return null;
+    if (!s || (!s.person && !s.selected?.length)) return null;
     if (Date.now() - s.at > maxAge) { await clearResult(); return null; }
     return s;
   } catch {

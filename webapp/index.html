@@ -33,6 +33,9 @@
 </div>
 
 <header id="bar">
+  <!-- Back goes one step toward the start and never loses anything; Close is
+       the only thing that ends a visit, and asks first. -->
+  <button id="navBack" class="iconbtn navbtn" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
   <p class="brand">
     <span class="brand-mark" aria-hidden="true">
       <svg viewBox="0 0 24 40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -73,6 +76,7 @@
     </svg>
   </button>
   <button id="staff" class="staff" aria-label="Technical details, for staff">?</button>
+  <button id="navClose" class="iconbtn navbtn" aria-label="Close and start over"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
 </header>
 
 <main id="work">
@@ -301,6 +305,8 @@
      runs, and on a shared screen a customer who wanders off mid-generation
      should not leave the shelf open behind them. -->
 <div id="wait">
+  <button id="waitBack" class="iconbtn navbtn wait-back" aria-label="Back - your picture keeps being made"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+  <button id="waitClose" class="iconbtn navbtn wait-close" aria-label="Close and start over"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
   <div id="lottie" class="lottie" aria-hidden="true"></div>
   <p id="pct" class="pct">0%</p>
   <div id="meter" class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="How far along your picture is">
@@ -327,6 +333,7 @@
      to whatever opened it, none of which is worth reimplementing badly. -->
 <dialog id="confirm" class="confirm" aria-labelledby="confirm-h">
   <form method="dialog">
+    <button value="cancel" class="iconbtn navbtn dlg-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
     <h2 id="confirm-h">Remove this garment?</h2>
     <p id="confirm-what"></p>
     <!-- Set in app.js: what this actually does differs for a garment a
@@ -337,6 +344,20 @@
     <div class="confirm-acts">
       <button value="cancel" class="btn" id="confirm-no">Keep it</button>
       <button value="go" class="btn danger-solid" id="confirm-yes">Remove</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Ending the visit. Everything - the photograph, the sarees, the pictures
+     made - stays until this is confirmed; nothing times out. -->
+<dialog id="endconfirm" class="confirm" aria-labelledby="end-h">
+  <form method="dialog">
+    <button value="cancel" class="iconbtn navbtn dlg-x" aria-label="Keep going"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+    <h2 id="end-h">Close and start over?</h2>
+    <p class="confirm-note">This clears your photograph, the sarees you chose and any pictures made. It cannot be undone.</p>
+    <div class="confirm-acts">
+      <button value="cancel" class="btn">Keep going</button>
+      <button value="go" class="btn danger-solid">Close and clear</button>
     </div>
   </form>
 </dialog>

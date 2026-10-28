@@ -1099,3 +1099,14 @@ body[data-stage="result"] #chips { display: none; }
   .chip { width: 40px; height: 40px; }
   #act .btn { min-height: 44px; font-size: 16px; }
 }
+
+/* NAVIGATION: back toward the start, close to end the visit. */
+.navbtn { width: 40px; height: 40px; }
+.navbtn svg { width: 20px; height: 20px; }
+#navClose { color: var(--bad); border-color: var(--bad); margin-left: var(--s-1); }
+#navBack[hidden], body:not([data-kiosk]) #navBack.at-start { visibility: hidden; }
+.wait-back, .wait-close { position: absolute; top: var(--s-4); }
+.wait-back { left: var(--s-4); } .wait-close { right: var(--s-4); color: var(--bad); border-color: var(--bad); }
+.confirm { position: fixed; }
+.dlg-x { position: absolute; top: var(--s-2); right: var(--s-2); width: 34px; height: 34px; }
+.confirm h2 { padding-right: 40px; }
