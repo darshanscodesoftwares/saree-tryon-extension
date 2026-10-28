@@ -52,7 +52,7 @@
   <ol id="steps" class="steps" aria-label="Your progress">
     <li class="step" data-step="outfit">
       <span class="dot" aria-hidden="true">1</span>
-      <span class="step-name">Choose a saree</span>
+      <span class="step-name" id="stepNameOutfit">Choose a saree</span>
       <span class="step-state"></span>
     </li>
     <li class="step" data-step="photo">
@@ -84,7 +84,7 @@
   <!-- ====================================================== step 1 ====== -->
   <section id="saree-step" aria-labelledby="saree-step-h">
     <div class="step-top">
-      <h2 class="step-h" id="saree-step-h"><span class="num">1</span> Choose a saree</h2>
+      <h2 class="step-h" id="saree-step-h"><span class="num">1</span> <span id="stepTitle">Choose a saree</span></h2>
       <!-- Category pills reflect the real catalogue - saree, and the two
            formalwear kinds - rather than occasions ("Bridal", "Festive")
            nothing in the shop's data can back. -->
@@ -121,7 +121,7 @@
         </div>
         <button id="heroSelect" class="btn primary hero-select" type="button">
           <svg class="sel-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 7 9 18.5 3.5 13"/></svg>
-          <span class="sel-off">Select this saree</span>
+          <span class="sel-off" id="selLabel">Select this saree</span>
           <svg class="sel-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
           <span class="sel-on">Selected</span>
         </button>
@@ -216,7 +216,7 @@
            all at once - the same wait screen this app already had, once per
            saree instead of once in total. -->
       <div class="selrail">
-        <p class="selrail-h">Selected sarees</p>
+        <p class="selrail-h" id="selrailH">Selected sarees</p>
         <div id="selrailList" class="selrail-list"></div>
         <button id="selrailAdd" class="selrail-add" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>

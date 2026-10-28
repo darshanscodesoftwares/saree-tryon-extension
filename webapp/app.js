@@ -306,7 +306,42 @@ function showKind(id) {
   renderGarments();
 }
 
+// THE WORDS FOLLOW THE RACK. A shirt is not a saree, so every label that names
+// what is being chosen is worked out from the garments themselves: "saree"
+// when they are all sarees, "outfit" as soon as anything else is in the mix.
+const nounOf = (kinds) => (kinds.length && kinds.every((k) => (k ?? DEFAULT_KIND) === "saree") ? "saree" : "outfit");
+const withA = (n) => (n === "outfit" ? "an outfit" : "a saree");
+
+function paintWords(list) {
+  const n = nounOf(list.map((g) => g.kind));
+  const title = `Choose ${withA(n)}`;
+  $("stepTitle").textContent = title;
+  $("stepNameOutfit").textContent = title;
+  el.heroPrev.setAttribute("aria-label", `Previous ${n}`);
+  el.heroNext.setAttribute("aria-label", `Next ${n}`);
+  const picks = nounOf(selected.map((g) => g.kind));
+  $("selrailH").textContent = `Selected ${picks === "outfit" ? "outfits" : "sarees"}`;
+  el.chipGarment.setAttribute("aria-label", `Your ${picks} selection. Touch to change it.`);
+  const one = nounOf([list[previewIndex]?.kind]);
+  $("selLabel").textContent = `Select this ${one}`;
+}
+
+// The frame behind a photo takes the photo's own backdrop colour, sampled
+// from its top edge, so a white studio shot is not hemmed in with grey bars.
+function tintFrame(img) {
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    const x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(img, 0, 0, img.naturalWidth, Math.max(1, img.naturalHeight * 0.04), 0, 0, 1, 1);
+    const [r, g, b] = x.getImageData(0, 0, 1, 1).data;
+    img.parentElement.style.background = `rgb(${r},${g},${b})`;
+  } catch { img.parentElement.style.background = ""; }
+}
+el.heroImg.addEventListener("load", () => tintFrame(el.heroImg));
+
 function renderHero(list) {
+  paintWords(list);
   const g = list[previewIndex];
   el.heroPrev.disabled = list.length < 2;
   el.heroNext.disabled = list.length < 2;
@@ -450,6 +485,7 @@ el.heroSelect.addEventListener("click", toggleHeroSelect);
 // instead of once in total.
 
 function renderSelRail() {
+  paintWords(filteredList());
   el.selrailList.replaceChildren();
   selected.forEach((g, i) => {
     const b = document.createElement("button");
