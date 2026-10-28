@@ -1110,3 +1110,14 @@ body[data-stage="result"] #chips { display: none; }
 .confirm { position: fixed; }
 .dlg-x { position: absolute; top: var(--s-2); right: var(--s-2); width: 34px; height: 34px; }
 .confirm h2 { padding-right: 40px; }
+
+/* NO RINGS ON TILES. The thumbnail is just its picture: no gold or green
+   outline, no padded card behind it. Which one is showing is carried by the
+   others being a little quieter; selection is the tick, and the order is the
+   number badge. The picture fills its cell, so nothing is left over to
+   misalign. */
+.railtile, .selcard { padding: 0; background: none; box-shadow: none; height: 100%; }
+.railtile[aria-current="true"], .selcard[aria-current="true"] { box-shadow: none; }
+.railtile img, .selcard img { height: 100%; aspect-ratio: auto; }
+.railtile:not([aria-current="true"]) img, .selcard:not([aria-current="true"]) img { opacity: .72; }
+.railtile img, .selcard img { transition: opacity .15s; }
