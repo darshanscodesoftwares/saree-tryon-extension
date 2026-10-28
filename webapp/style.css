@@ -1144,3 +1144,9 @@ body[data-kiosk] #staff { display: none; }
 .navbtn { width: 32px; height: 32px; }
 .navbtn svg { width: 16px; height: 16px; }
 #navBack.at-start { display: none; }
+
+/* The status sits ON the name's baseline, as part of the same lockup, not
+   floating at the middle of the bar beside it. */
+.brand { flex: 1 1 auto; align-items: baseline; }
+.brand .brand-mark { align-self: center; }
+.brand .status { flex: 0 1 auto; margin-left: var(--s-1); }
