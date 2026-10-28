@@ -824,6 +824,18 @@ body[data-stage="result"] #chips { display: none; }
   .meter { width: 420px; height: 8px; }
 }
 
+/* The dead zone only belongs on a screen tall enough to have one. It exists
+   because the bottom fifth of a standing-height kiosk is near knee height and
+   nothing there can be reached - but that is a fact about a 1080x1920 panel
+   on a stand, not about "portrait and 760px wide". A laptop flipped upright
+   matches the same query (1200x1920 at 150% is 800x1280 CSS px) and lost a
+   quarter of its screen to a plinth nobody was standing at. The floor now
+   needs the height of a real kiosk; below that it is zero, and the dock sits
+   at the bottom of the screen where a hand on a laptop expects it. */
+@media (min-width: 760px) and (orientation: portrait) and (max-height: 1699px) {
+  :root { --floor: 0px; }
+}
+
 /* ============================================================ desktop ===*/
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   /* Capped against viewport HEIGHT, because a 1366x768 SCREEN is not a
