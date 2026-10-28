@@ -45,12 +45,19 @@
 * { box-sizing: border-box; }
 html, body { overscroll-behavior: none; }
 html { -webkit-text-size-adjust: 100%; }
+/* Elegant and quiet: Cormorant Garamond for names and headings, Jost for
+   everything else. Both fall back to what the device already has. */
+:root {
+  --display: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+button, input, select, textarea { font-family: inherit; }
 body {
   margin: 0;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font: 16px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
   display: grid;
   grid-template-areas: "bar" "work" "act";
@@ -82,7 +89,7 @@ img, video { display: block; }
 
 /* An elegant display face where one is available, without a web font: a shop
    screen may be offline and a missing font is worse than a system one. */
-h1, h2, .kicker { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif; }
+h1, h2, .kicker { font-family: var(--display); }
 
 /* A default scrollbar is a bright slab on a dark page, and on a touch panel
    nobody uses it anyway - but it still has to say that there is more below. */
@@ -115,7 +122,7 @@ h1, h2, .kicker { font-family: "Iowan Old Style", "Palatino Linotype", Palatino,
 .step .dot {
   width: 22px; height: 22px; border-radius: 50%; flex: none;
   display: grid; place-items: center;
-  font-size: 11px; font-weight: 700; font-family: system-ui, sans-serif;
+  font-size: 11px; font-weight: 700; font-family: var(--sans);
   background: var(--surface-2); color: var(--muted);
 }
 .step-name { font-size: 13px; font-weight: 600; color: var(--muted); }
@@ -180,7 +187,7 @@ body[data-kiosk] #historybtn { display: none; }
   flex: none; display: grid; place-items: center;
   width: 26px; height: 26px; border-radius: 50%;
   background: var(--surface-2); border: 1px solid var(--line);
-  font-size: 13px; font-family: system-ui, sans-serif; color: var(--muted);
+  font-size: 13px; font-family: var(--sans); color: var(--muted);
 }
 body[data-photo="still"] #you .step-h .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
@@ -318,7 +325,7 @@ body[data-photo="still"] .frame-acts { background: linear-gradient(transparent, 
   background: var(--surface);
 }
 .hero-card-text { flex: 1 1 auto; min-width: 0; }
-.hero-name { font-size: 17px; font-weight: 600; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+.hero-name { font-size: 17px; font-weight: 600; font-family: var(--display); }
 .hero-kind { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .hero-select { flex: none; gap: 7px; }
 .hero-select svg { width: 18px; height: 18px; }
@@ -651,7 +658,7 @@ body[data-stage="working"] #wait { display: grid; }
   border-radius: 99px; background: var(--accent);
   transition: width .6s cubic-bezier(.3,.9,.3,1);
 }
-.waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+.waitnote { font-size: clamp(17px, 2.6vw, 24px); color: var(--text); font-family: var(--display); }
 .waitsub { font-size: clamp(12px, 1.4vw, 15px); color: var(--muted); }
 #resultacts { display: none; flex: 1 1 auto; gap: var(--s-3); align-items: center; justify-content: center; }
 /* Two icons and one worded button, centred as a group. Peek and Back carry no
@@ -1040,7 +1047,7 @@ body[data-stage="result"] #chips { display: none; }
   padding: max(var(--s-3), env(safe-area-inset-top)) var(--gutter) var(--s-2);
   border-bottom: 1px solid var(--hair);
 }
-.history-top h2 { font-size: 22px; margin: 0; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+.history-top h2 { font-size: 22px; margin: 0; font-family: var(--display); }
 .history-note { margin: 4px 0 0; font-size: 13px; color: var(--muted); max-width: 44rem; }
 .history-key { flex: none; display: flex; gap: var(--s-2); padding: var(--s-3) var(--gutter) 0; max-width: 32rem; }
 .history-key input {
@@ -1121,3 +1128,8 @@ body[data-stage="result"] #chips { display: none; }
 .railtile img, .selcard img { height: 100%; aspect-ratio: auto; }
 .railtile:not([aria-current="true"]) img, .selcard:not([aria-current="true"]) img { opacity: .72; }
 .railtile img, .selcard img { transition: opacity .15s; }
+
+/* Cormorant sets small on the line, so its sizes are lifted a step. */
+h1, h2, .step-h, .hero-name, .waitnote, .brand-name { font-weight: 600; }
+.step-h { font-size: 1.2em; } .hero-name { font-size: 20px; letter-spacing: .01em; }
+@media (min-width: 760px) and (orientation: portrait) { .step-h { font-size: 21px !important; } .hero-name { font-size: 19px !important; } }
