@@ -836,6 +836,45 @@ body[data-stage="result"] #chips { display: none; }
   :root { --floor: 0px; }
 }
 
+/* FULL-BLEED, AS THE REFERENCES DRAW IT.
+   Each step fills the screen: the saree, the camera and the result are the
+   page, not a picture placed on it. Every main area is a grid row of
+   minmax(0,1fr) so it takes all the height there is, and its media covers it. */
+@media (min-width: 760px) and (orientation: portrait) {
+  #work { padding-bottom: var(--s-3); }
+
+  /* Step 1: the hero is the screen; the rail is a slim column beside it. */
+  .browse { grid-template-columns: minmax(0, 1fr) clamp(120px, 18%, 200px);
+            grid-template-rows: minmax(0, 1fr) auto auto; }
+  .hero, .hero-frame { width: 100%; height: 100%; }
+  .hero-frame img { object-fit: cover; object-position: center top; }
+
+  /* Step 2: the camera (or the chooser, before there is one) takes the whole
+     left of the screen; the tips are a column down the right. */
+  .you-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(200px, 30%, 340px);
+                grid-template-rows: minmax(0, 1fr); grid-template-areas: "main tips";
+                gap: var(--s-3); align-items: stretch; }
+  .chooser, .frame { grid-area: main; }
+  .chooser { margin: 0; height: 100%; }
+  .frame { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; margin: 0; }
+  .frame .hint { top: var(--s-5); bottom: auto; }
+  .tips { grid-area: tips; align-self: stretch; align-content: start; }
+  .tip { flex-direction: column; align-items: center; text-align: center; padding: var(--s-4) var(--s-3); }
+  .tip svg { width: 40px; height: 40px; }
+  .tip-lead { padding-block: var(--s-5); }
+
+  /* Step 3: the rail on the left, the result filling everything else. The
+     side-by-side "your photo" goes - the reference shows the result alone,
+     and hold-to-compare still reaches the original. */
+  .result-layout { grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+  .results { grid-template-columns: minmax(0, 1fr); max-width: none; height: 100%; }
+  .shot.before { display: none; }
+  body.comparing .shot.before { display: flex; }
+  .shot.after { height: 100%; min-height: 0; }
+  .shot-wrap { width: 100%; height: 100%; flex: 1 1 auto; aspect-ratio: auto; }
+  .shot figcaption { display: none; }
+}
+
 /* ============================================================ desktop ===*/
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   /* Capped against viewport HEIGHT, because a 1366x768 SCREEN is not a
