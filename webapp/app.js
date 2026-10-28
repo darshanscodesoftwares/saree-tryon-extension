@@ -412,6 +412,21 @@ function syncRailScroll() {
     ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
 }
 
+// Swipe the hero left or right to move through the rack. A mostly-vertical
+// drag is left alone, and a swipe that ends on a button is not also a tap.
+{
+  let x0 = null, y0 = 0, swiped = false;
+  const frame = el.heroImg.parentElement;
+  frame.addEventListener("pointerdown", (e) => { x0 = e.clientX; y0 = e.clientY; swiped = false; });
+  frame.addEventListener("pointerup", (e) => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { swiped = true; heroStep(dx < 0 ? 1 : -1); }
+  });
+  frame.addEventListener("pointercancel", () => { x0 = null; });
+  frame.addEventListener("click", (e) => { if (swiped) { e.stopPropagation(); e.preventDefault(); swiped = false; } }, true);
+}
 el.heroPrev.addEventListener("click", () => heroStep(-1));
 el.heroNext.addEventListener("click", () => heroStep(1));
 el.heroSelect.addEventListener("click", toggleHeroSelect);
