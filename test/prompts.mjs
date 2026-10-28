@@ -37,6 +37,8 @@ ok("no pallu in the women's prompt", !/pallu|saree|drape/i.test(women));
   ok("a camera photo adds the webcam paragraph", cam.startsWith(saree) && /webcam or a phone camera/.test(cam));
   ok("it says to take identity from the face and the body from natural proportions",
      /identity from the face/i.test(cam) && /Do not enlarge the head/i.test(cam));
+  ok("the face's structure is to be kept, scaled not reshaped",
+     /never by reshaping/i.test(cam) && /face shape, jawline/i.test(saree));
   ok("an upload is left exactly as it was", promptFor("saree", { casual: false }) === saree && promptFor("saree") === saree);
 }
 

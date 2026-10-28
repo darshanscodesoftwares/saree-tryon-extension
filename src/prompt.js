@@ -17,7 +17,9 @@ const PERSON = `Use the two attached images.
 
 IMAGE 1 is a photograph of a person.`;
 
-const KEEP_PERSON = `Keep from image 1: the person's face, hair, skin tone, body shape and height. It must be recognisably the same person.`;
+const KEEP_PERSON = `Keep from image 1: the person's face, hair, skin tone, body shape and height. It must be recognisably the same person.
+
+The face is not to be redrawn: keep its exact structure - face shape, jawline, forehead, cheekbones, eye shape and spacing, nose, lips, ears, eyebrows, and any mole, dimple or mark. Do not slim, smooth, symmetrise, beautify or age it.`;
 
 // The head is the other half of keeping the person, and it goes wrong in a
 // specific direction: too big. A generator is trying to keep the face legible
@@ -121,7 +123,7 @@ Framing: standing square to the camera, arms relaxed at the sides, plain light-g
 // what a webcam does, so it corrects for it instead of copying it.
 const CASUAL_CAPTURE = `About image 1: it was taken on a webcam or a phone camera, close up and at arm's length, so expect these faults and correct for them rather than copying them. A wide lens makes the face and shoulders look larger than the body and the legs shorter; the camera is often held low or tilted, which stretches or squashes the head. The face is sharp and well lit while the body is small, soft or partly cropped. The lighting is uneven, and the colours are shifted by the room.
 
-So: take identity from the face and nothing else - the features, the age, the hair, the skin tone. Take the body from a natural adult of the same apparent age, build and gender, standing straight, at ordinary proportions - not from the distorted shape in image 1. Do not enlarge the head to match how large the face is in image 1, and do not copy the lens distortion, the tilt, or the shadows of that room. Match the face's sharpness, grain and lighting to the rest of the picture so the head and body look photographed together, in one light, on one day. If the body is out of frame or cropped in image 1, invent a plausible one rather than stretching what is there.`;
+So: take identity from the face - and keep that face's own structure exactly as it is in image 1: the same face shape, jaw, cheekbones, eyes, nose, lips and brows, in the same relation to each other. Correct the head's SIZE by scaling the whole face down uniformly, never by reshaping it; do not slim, lengthen or soften it to undo the lens, and do not swap it for a more typical or more attractive face. Take the age, the hair and the skin tone from image 1 too. Only the body is rebuilt: take it from a natural adult of the same apparent age, build and gender, standing straight, at ordinary proportions - not from the distorted shape in image 1. Do not enlarge the head to match how large the face is in image 1, and do not copy the lens distortion, the tilt, or the shadows of that room. Match the face's sharpness, grain and lighting to the rest of the picture so the head and body look photographed together, in one light, on one day. If the body is out of frame or cropped in image 1, invent a plausible one rather than stretching what is there.`;
 
 export const DEFAULT_KIND = "saree";
 
