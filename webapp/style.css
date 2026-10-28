@@ -709,6 +709,11 @@ body[data-stage="result"] #chips { display: none; }
   background: radial-gradient(120% 90% at 50% 0%, #f7efe6 0%, var(--bg) 60%);
 }
 #attract[hidden] { display: none; }
+/* A laptop flipped to portrait is on a desk, not at standing height: the
+   middle of the screen is the reachable part, so centre the block there. */
+@media (orientation: portrait) and (max-height: 1699px) {
+  #attract { place-items: center; padding-bottom: var(--s-5); }
+}
 .attract-in { display: grid; gap: var(--s-3); justify-items: center; max-width: 16ch; }
 .attract-note { font-size: 14px; color: var(--muted); max-width: 30ch; }
 .kicker { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
