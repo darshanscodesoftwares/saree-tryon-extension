@@ -1133,3 +1133,13 @@ body[data-stage="result"] #chips { display: none; }
 h1, h2, .step-h, .hero-name, .waitnote, .brand-name { font-weight: 600; }
 .step-h { font-size: 1.2em; } .hero-name { font-size: 20px; letter-spacing: .01em; }
 @media (min-width: 760px) and (orientation: portrait) { .step-h { font-size: 21px !important; } .hero-name { font-size: 19px !important; } }
+
+/* QUIETER CHROME. The status line is a murmur when all is well (it still
+   speaks up, in colour, for a warning); the staff "?" is not on a kiosk; the
+   nav buttons are smaller; and there is no back arrow on the first step -
+   there is nothing before it. */
+.status.ready { font-size: 12px; opacity: .5; }
+body[data-kiosk] #staff { display: none; }
+.navbtn { width: 32px; height: 32px; }
+.navbtn svg { width: 16px; height: 16px; }
+#navBack.at-start { display: none; }
